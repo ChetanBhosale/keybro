@@ -6,7 +6,7 @@ SIGN := $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q "
 
 MCP_DIR := $(HOME)/Library/Application Support/keybro/bin
 
-.PHONY: gen build run test smoke reset-perms clean dev-cert mcp
+.PHONY: gen build run test smoke reset-perms clean dev-cert mcp extension
 
 dev-cert:
 	./scripts/make-dev-cert.sh
@@ -23,6 +23,14 @@ mcp:
 	mkdir -p "$(MCP_DIR)"
 	cp "$$(cd KeybroKit && swift build -c release --show-bin-path)/keybro-mcp" "$(MCP_DIR)/keybro-mcp"
 	@echo "Installed. Connect with: claude mcp add keybro -- \"$(MCP_DIR)/keybro-mcp\""
+
+# Browser extension helper. Then load extension/chrome unpacked in chrome://extensions.
+extension:
+	cd KeybroKit && swift build -c release --product keybro-nmh
+	mkdir -p "$(MCP_DIR)"
+	cp "$$(cd KeybroKit && swift build -c release --show-bin-path)/keybro-nmh" "$(MCP_DIR)/keybro-nmh"
+	./scripts/install-extension-host.sh "$(MCP_DIR)/keybro-nmh"
+	@echo "Now open chrome://extensions, turn on Developer mode, Load unpacked: $(CURDIR)/extension/chrome"
 
 run: build mcp
 	-pkill -x keybro

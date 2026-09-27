@@ -9,6 +9,8 @@ public enum DraftVariant: String, CaseIterable, Sendable {
 /// The three versions Claude writes, filled in as the reply streams.
 public struct GenerateDraft: Equatable, Sendable {
     public var contact: String?
+    /// Set for questions about the screen instead of variants.
+    public var answer: String?
     public var variants: [DraftVariant: String] = [:]
     /// Variants whose closing tag has arrived.
     public var finished: Set<DraftVariant> = []
@@ -19,7 +21,7 @@ public struct GenerateDraft: Equatable, Sendable {
         self.finished = finished
     }
 
-    public var isEmpty: Bool { variants.values.allSatisfy { $0.isEmpty } }
+    public var isEmpty: Bool { variants.values.allSatisfy { $0.isEmpty } && (answer ?? "").isEmpty }
 
     /// Parses a partial or complete reply. Unclosed tags yield their text so far.
     /// `final`: the reply is complete; untagged text becomes the casual version.
@@ -28,6 +30,10 @@ public struct GenerateDraft: Equatable, Sendable {
         if let (contact, closed) = tag("contact", in: raw), closed {
             let name = contact.trimmingCharacters(in: .whitespacesAndNewlines)
             draft.contact = name.isEmpty ? nil : name
+        }
+        if let (text, _) = tag("answer", in: raw) {
+            let cleaned = TextCleanup.removeDashes(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            draft.answer = cleaned.isEmpty ? nil : cleaned
         }
         for variant in DraftVariant.allCases {
             guard let (text, closed) = tag(variant.rawValue, in: raw) else { continue }

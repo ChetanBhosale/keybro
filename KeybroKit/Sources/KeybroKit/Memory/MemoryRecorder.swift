@@ -17,6 +17,12 @@ public actor MemoryRecorder {
         self.search = search
     }
 
+    /// A name read from the app's conversation header (see TypingWatcher).
+    public func noteHeader(_ name: String, bundleID: String?, windowTitle: String?) {
+        let surface = ContactResolver.resolve(bundleID: bundleID, windowTitle: windowTitle).surface
+        headerHints[Self.windowKey(surface, windowTitle)] = name
+    }
+
     public func observe(_ sample: FieldSample?) {
         for event in tracker.observe(sample) {
             do { try handle(event) } catch { /* A failed write shouldn't break typing. */ }
@@ -69,8 +75,24 @@ public actor MemoryRecorder {
                        entityID: person, contactRaw: conversation.contact, text: text, createdAt: sample.at)
     }
 
+    /// Where the browser extension writes; nil disables it (tests).
+    private var webContextURL: URL? = WebContext.fileURL
+    /// Header names read from native apps, per window.
+    private var headerHints: [String: String] = [:]
+
+    public func setWebContextURL(_ url: URL?) { webContextURL = url }
+
     public func conversation(bundleID: String?, windowTitle: String?) -> Conversation {
         var conversation = ContactResolver.resolve(bundleID: bundleID, windowTitle: windowTitle)
+        // Browser tab: trust the extension if it reported this tab.
+        if let bundleID, ContactResolver.browsers.contains(bundleID), let url = webContextURL,
+           let web = WebContext.load(from: url), web.matches(windowTitle: windowTitle) {
+            if let surface = web.surface { conversation.surface = surface }
+            if let contact = web.contact, !contact.isEmpty { conversation.contact = contact }
+        }
+        if conversation.contact == nil {
+            conversation.contact = headerHints[Self.windowKey(conversation.surface, windowTitle)]
+        }
         if conversation.contact == nil {
             conversation.contact = learnedContacts[Self.windowKey(conversation.surface, windowTitle)]
         }

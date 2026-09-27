@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "keybro",
+  "version": "0.1.0",
+  "description": "Tells the keybro Mac app who you're chatting with on web apps. Talks only to keybro on this Mac.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3hFiiqf2lqO5tvhWVRMXL7ID7W29+zKb1WYeBXznpIgCcycVy1PS8e/8RWycoShkLA3fZ3Vh+4XphrAd87W8+ENV6z59l1piu2XyHy+uASPhs/f1PmqlcLwWCkeXOg0sTCaYEhGAdRvpmyf4YPrRKM6/Cx8wgKWxfXJln1ycN3/u2S4SGB4pH+JjJLNQIRLty+tCUb//br/t7TUqiRJcSBsfxHl5A1s9dD1+5LLrflBo9fwhhHj3K5MSRGsOS+pf9lQo217UufZDaKNmXhPdEpNtEBTiYVJiKjg1Gz0p2+Ee6ZUbbqNLdiMciyK6K7E5NyzL4D5oKN/Xr75mqAe9swIDAQAB",
+  "permissions": ["nativeMessaging"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://web.whatsapp.com/*",
+        "https://mail.google.com/*",
+        "https://app.slack.com/*",
+        "https://www.linkedin.com/*",
+        "https://x.com/*",
+        "https://web.telegram.org/*",
+        "https://discord.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

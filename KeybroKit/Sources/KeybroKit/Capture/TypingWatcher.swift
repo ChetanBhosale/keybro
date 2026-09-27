@@ -18,6 +18,9 @@ public final class TypingWatcher {
     private let isBlocked: @MainActor (String?) -> Bool
     private var timer: Timer?
     private var manualAccessibilityPIDs: Set<pid_t> = []
+    /// Native chat apps whose window title doesn't carry the conversation name.
+    static let headerApps: Set<String> = ["net.whatsapp.WhatsApp", "desktop.WhatsApp", "com.apple.MobileSMS"]
+    private var lastHeaderRead = Date.distantPast
 
     public init(recorder: MemoryRecorder, isEnabled: @escaping @MainActor () -> Bool, isBlocked: @escaping @MainActor (String?) -> Bool) {
         self.recorder = recorder
@@ -59,11 +62,23 @@ public final class TypingWatcher {
               let value = AX.string(element, "AXValue")
         else { return nil }
 
+        let windowTitle = AX.focusedWindowTitle(in: pid)
+        if let bundleID = app.bundleIdentifier, Self.headerApps.contains(bundleID) {
+            // Switching chats keeps the same field and window title, so re-read every few seconds.
+            if Date().timeIntervalSince(lastHeaderRead) >= 3 {
+                lastHeaderRead = Date()
+                if let name = AX.conversationHeader(in: pid, appName: app.localizedName) {
+                    let recorder = recorder
+                    Task { await recorder.noteHeader(name, bundleID: bundleID, windowTitle: windowTitle) }
+                }
+            }
+        }
+
         return FieldSample(
             fieldKey: "\(pid)-\(CFHash(element))",
             bundleID: app.bundleIdentifier,
             appName: app.localizedName,
-            windowTitle: AX.focusedWindowTitle(in: pid),
+            windowTitle: windowTitle,
             value: value,
             at: Date()
         )

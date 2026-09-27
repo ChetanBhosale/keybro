@@ -4,7 +4,7 @@ public enum FixPrompt {
     /// Longer style files cost latency on every Fix.
     static let maxStyleCharacters = 4000
 
-    public static func systemPrompt(style: String?) -> String {
+    public static func systemPrompt(style: String?, mode: String? = nil) -> String {
         var prompt = """
         You fix the English of text someone typed into a chat, email or document on their Mac.
 
@@ -23,6 +23,9 @@ public enum FixPrompt {
         """
         if let style = style?.trimmingCharacters(in: .whitespacesAndNewlines), !style.isEmpty {
             prompt += "\n\nHow this person writes (follow it):\n<style>\n\(String(style.prefix(maxStyleCharacters)))\n</style>"
+        }
+        if let mode = mode?.trimmingCharacters(in: .whitespacesAndNewlines), !mode.isEmpty {
+            prompt += "\n\nWhere this text is going: \(mode) Keep their meaning; only adjust tone if it clearly doesn't fit."
         }
         return prompt
     }

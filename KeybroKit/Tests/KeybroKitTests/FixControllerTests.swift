@@ -57,7 +57,7 @@ struct FixControllerTests {
 
     func controller(_ driver: FakeDriver, reply: String = "Hey, can you check the PR?", error: Error? = nil) -> FixController {
         let calls = calls
-        return FixController(driver: driver, fixer: { text in
+        return FixController(driver: driver, fixer: { text, _ in
             await calls.record(text)
             if let error { throw error }
             return reply
@@ -163,7 +163,7 @@ struct FixControllerTests {
 
     @Test func stateAutoHides() async throws {
         let driver = FakeDriver(target("hey"), value: "hey")
-        let c = FixController(driver: driver, fixer: { _ in "Hey." }, hideAfter: .milliseconds(50))
+        let c = FixController(driver: driver, fixer: { _, _ in "Hey." }, hideAfter: .milliseconds(50))
         await c.fix()
         try await Task.sleep(for: .milliseconds(200))
         #expect(c.state == .idle)

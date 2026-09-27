@@ -29,6 +29,37 @@ enum AX {
         return string(window as! AXUIElement, "AXTitle")
     }
 
+    /// Best guess at the conversation name shown in a chat app's header: the first short static
+    /// text near the top of the right-hand pane. Only used for apps whose window title doesn't say.
+    static func conversationHeader(in pid: pid_t, appName: String?) -> String? {
+        guard let windowRef = attribute(application(pid), "AXFocusedWindow"),
+              CFGetTypeID(windowRef) == AXUIElementGetTypeID()
+        else { return nil }
+        let window = windowRef as! AXUIElement
+        guard let frame = frame(of: window) else { return nil }
+        let ignored: Set<String> = ["whatsapp", "messages", "chats", "search", "online", "typing…", "typing...", "new chat",
+                                    "archived", "calls", "status", "communities", "settings", "edit", "imessage"]
+        var queue: [(AXUIElement, Int)] = [(window, 0)]
+        var visited = 0
+        while !queue.isEmpty, visited < 600 {
+            let (element, depth) = queue.removeFirst()
+            visited += 1
+            let role = string(element, "AXRole")
+            if role == "AXStaticText" || role == "AXHeading",
+               let text = (string(element, "AXValue") ?? string(element, "AXTitle"))?.trimmingCharacters(in: .whitespacesAndNewlines),
+               (2...60).contains(text.count), !ignored.contains(text.lowercased()), text != appName,
+               !text.lowercased().hasPrefix("last seen"), !text.contains("\n"),
+               let f = AX.frame(of: element),
+               f.maxY >= frame.maxY - frame.height * 0.14,     // top band (AppKit coordinates)
+               f.minX >= frame.minX + frame.width * 0.28 {     // right-hand pane
+                return text
+            }
+            guard depth < 14, let children = attribute(element, "AXChildren") as? [AXUIElement] else { continue }
+            queue.append(contentsOf: children.map { ($0, depth + 1) })
+        }
+        return nil
+    }
+
     /// Electron apps (Slack, Discord, VS Code) only build their tree when asked.
     static func enableManualAccessibility(_ pid: pid_t) {
         AXUIElementSetAttributeValue(application(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue)

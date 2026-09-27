@@ -49,7 +49,7 @@ try await Task.sleep(for: .seconds(1.5))
 
 let driver = AXTextFieldDriver()
 let fixer = ClaudeFixer(runner: ClaudeRunner(executablePath: claude), style: nil)
-let controller = FixController(driver: driver, fixer: { try await fixer.fix($0) }, hideAfter: .seconds(60))
+let controller = FixController(driver: driver, fixer: { text, _ in try await fixer.fix(text) }, hideAfter: .seconds(60))
 
 // 1. Nothing selected: fixes the whole field.
 requireTextEditInFront("whole field")

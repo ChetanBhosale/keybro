@@ -155,11 +155,17 @@ public struct HybridSearch: Sendable {
     /// Recent messages count a bit more; the boost halves every 30 days.
     static let recencyHalfLife: TimeInterval = 30 * 86_400
     static let rrfK = 60.0
+    /// Exact words are a stronger signal than Apple's small embedding model.
+    /// keybro-eval --demo: weight 1 gives recall@1 50%, weight 3 gives 60% (same as keyword alone)
+    /// while keeping hybrid's better recall@5/10. Override with KEYBRO_KEYWORD_WEIGHT to experiment.
+    static var keywordWeight: Double {
+        ProcessInfo.processInfo.environment["KEYBRO_KEYWORD_WEIGHT"].flatMap(Double.init) ?? 3.0
+    }
 
     public func search(_ query: String, limit: Int = 10, since: Date? = nil, now: Date = Date()) async throws -> [Episode] {
         var scores: [Int64: Double] = [:]
         for (rank, e) in try store.search(query, limit: limit * 3).enumerated() {
-            if let id = e.id { scores[id, default: 0] += 1 / (Self.rrfK + Double(rank)) }
+            if let id = e.id { scores[id, default: 0] += Self.keywordWeight / (Self.rrfK + Double(rank)) }
         }
         if let embedder, let index,
            let vector = try? await embedder.embed([query]).first, vector.contains(where: { $0 != 0 }) {

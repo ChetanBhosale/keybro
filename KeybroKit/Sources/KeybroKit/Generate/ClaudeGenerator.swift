@@ -16,7 +16,7 @@ public struct ClaudeGenerator: Sendable {
             prompt: GeneratePrompt.userPrompt(input),
             images: input.screenshot.map { [$0] } ?? [],
             model: .sonnet,
-            systemPrompt: GeneratePrompt.systemPrompt(style: style),
+            systemPrompt: input.isQuestion ? GeneratePrompt.askSystemPrompt : GeneratePrompt.systemPrompt(style: style),
             tools: [],
             thinking: false,
             timeout: .seconds(60)
@@ -40,7 +40,11 @@ public struct ClaudeGenerator: Sendable {
                             break
                         }
                     }
-                    let final = GenerateDraft.parse(raw, final: true)
+                    var final = GenerateDraft.parse(raw, final: true)
+                    if input.isQuestion, final.answer == nil, let plain = final.variants[.casual] {
+                        final.answer = plain
+                        final.variants = [:]
+                    }
                     if final.isEmpty {
                         continuation.finish(throwing: ClaudeError.failed("Claude didn't return a message. Try rephrasing."))
                     } else {

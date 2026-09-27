@@ -59,9 +59,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let controller = FixController(
             driver: AXTextFieldDriver(),
-            fixer: { text in
+            fixer: { text, target in
                 guard let path = await state.claudePath else { throw ClaudeError.notFound }
-                return try await ClaudeFixer(runner: ClaudeRunner(executablePath: path)).fix(text)
+                let surface = await recorder?.conversation(bundleID: target.bundleID, windowTitle: target.windowTitle).surface
+                    ?? ContactResolver.resolve(bundleID: target.bundleID, windowTitle: target.windowTitle).surface
+                return try await ClaudeFixer(runner: ClaudeRunner(executablePath: path)).fix(text, mode: AppModes.load().instructions(for: surface))
             },
             onFixed: { fixed, target in
                 guard await settings.isCapturing, await !settings.isBlocked(target.bundleID) else { return }
@@ -101,11 +103,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onInserted: { text, target, contact in
                 guard await settings.isCapturing, await !settings.isBlocked(target.bundleID) else { return }
                 await recorder?.recordGenerate(inserted: text, target: target, contact: contact)
+            },
+            modeFor: { target in
+                let surface = await recorder?.conversation(bundleID: target.bundleID, windowTitle: target.windowTitle).surface
+                    ?? ContactResolver.resolve(bundleID: target.bundleID, windowTitle: target.windowTitle).surface
+                return AppModes.load().instructions(for: surface)
             }
         )
         generateController = generate
         commandBar = CommandBarPanel(controller: generate)
-        KeyboardShortcuts.onKeyDown(for: .generate) { Task { await generate.start() } }
+        KeyboardShortcuts.onKeyDown(for: .generate) {
+            // Pick up edits made in Settings.
+            generate.commands = SavedCommands.load()
+            Task { await generate.start() }
+        }
 
         if !UserDefaults.standard.bool(forKey: "didFinishSetup") || !state.accessibility {
             showSetup()

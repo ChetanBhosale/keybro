@@ -13,6 +13,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "keyboard") }
+            WritingSettings().tabItem { Label("Writing", systemImage: "text.quote") }
             MemorySettingsTab(memory: memory, store: store).tabItem { Label("Memory", systemImage: "brain") }
             PrivacySettings(memory: memory, store: store, openMemory: openMemory).tabItem { Label("Privacy", systemImage: "hand.raised") }
             EngineSettings(state: state, services: services).tabItem { Label("Engine", systemImage: "cpu") }
@@ -74,6 +75,68 @@ enum ShortcutCombo {
         guard let key = shortcut.key, let name = keys.first(where: { $0.0 == key })?.1 else { return nil }
         let m = shortcut.modifiers
         return .init(key: name, command: m.contains(.command), shift: m.contains(.shift), option: m.contains(.option), control: m.contains(.control))
+    }
+}
+
+// MARK: - Writing
+
+private struct WritingSettings: View {
+    @State private var modes = AppModes.load()
+    @State private var commands = SavedCommands.load()
+    @State private var newCommand = ""
+    @State private var saved = false
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(modes.modes.keys.sorted(), id: \.self) { surface in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(surface).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        TextField(surface, text: Binding(get: { modes.modes[surface] ?? "" }, set: { modes.modes[surface] = $0 }), axis: .vertical)
+                            .lineLimit(1...3)
+                            .labelsHidden()
+                    }
+                }
+                Button("Restore default modes") { modes = AppModes() }.buttonStyle(.link)
+            } header: {
+                Text("How to write in each app")
+            } footer: {
+                Text("Generate and Fix follow these. Leave one empty to use no special style there.")
+            }
+
+            Section {
+                ForEach(commands.commands.keys.sorted(), id: \.self) { name in
+                    HStack(alignment: .top) {
+                        Text("/\(name)").font(.system(.body, design: .monospaced)).frame(width: 90, alignment: .leading)
+                        TextField(name, text: Binding(get: { commands.commands[name] ?? "" }, set: { commands.commands[name] = $0 }), axis: .vertical)
+                            .lineLimit(1...3)
+                            .labelsHidden()
+                        Button { commands.commands[name] = nil } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
+                    }
+                }
+                HStack {
+                    TextField("new command name", text: $newCommand)
+                    Button("Add") {
+                        let name = newCommand.lowercased().filter { $0.isLetter || $0.isNumber }
+                        guard !name.isEmpty else { return }
+                        commands.commands[name] = commands.commands[name] ?? "Describe what this command should write."
+                        newCommand = ""
+                    }
+                }
+            } header: {
+                Text("Saved commands")
+            } footer: {
+                Text("Type /name in the command bar, or in any text field before pressing Generate. Add details after the name.")
+            }
+
+            HStack {
+                Button("Save") {
+                    saved = (try? modes.save()) != nil && (try? commands.save()) != nil
+                }
+                if saved { Text("Saved.").foregroundStyle(.secondary) }
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

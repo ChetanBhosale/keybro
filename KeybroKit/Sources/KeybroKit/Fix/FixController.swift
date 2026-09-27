@@ -21,7 +21,8 @@ public enum FixState: Equatable, Sendable {
 public final class FixController {
     public private(set) var state: FixState = .idle
 
-    public typealias Fixer = @Sendable (String) async throws -> String
+    /// (text, where it is) -> fixed text.
+    public typealias Fixer = @Sendable (String, TextTarget) async throws -> String
     public typealias FixedHandler = @Sendable (String, TextTarget) async -> Void
 
     private let driver: TextFieldDriver
@@ -75,7 +76,7 @@ public final class FixController {
 
         let raw: String
         do {
-            raw = try await fixer(target.text)
+            raw = try await fixer(target.text, target)
         } catch is CancellationError {
             return finish(.idle)
         } catch {

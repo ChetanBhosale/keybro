@@ -79,15 +79,27 @@ final class CommandBarPanel {
 struct CommandBarView: View {
     var controller: GenerateController
     @State private var input = ""
+    @State private var voice = VoiceDictation()
     @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             inputRow
             chips
+            if controller.phase == .composing, input.hasPrefix("/") {
+                commandList
+            }
             if !controller.draft.isEmpty || controller.phase == .generating {
                 Divider().padding(.top, 10)
-                draftArea
+                if controller.isQuestion { answerArea } else { draftArea }
+            }
+            if let error = voice.error {
+                Label(error, systemImage: "mic.slash")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
             }
             if case .failed(let message) = controller.phase {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -108,6 +120,8 @@ struct CommandBarView: View {
             if phase == .composing || phase == .ready { focused = true }
             if phase == .composing { input = "" }
         }
+        .onChange(of: voice.transcript) { _, text in if !text.isEmpty { input = text } }
+        .onChange(of: controller.isOpen) { _, open in if !open { voice.stop() } }
         .onKeyPress(.upArrow) { controller.moveSelection(by: -1); return .handled }
         .onKeyPress(.downArrow) { controller.moveSelection(by: 1); return .handled }
         .onExitCommand { controller.cancel() }
@@ -131,6 +145,14 @@ struct CommandBarView: View {
                 .disabled(controller.phase == .generating)
             if controller.phase == .generating {
                 ProgressView().controlSize(.small)
+            } else {
+                Button { voice.toggle() } label: {
+                    Image(systemName: voice.isListening ? "mic.fill" : "mic")
+                        .foregroundStyle(voice.isListening ? Color.red : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Speak your instruction (on this Mac only). ⌘D")
+                .keyboardShortcut("d", modifiers: .command)
             }
         }
         .padding(.horizontal, 14)
@@ -139,9 +161,9 @@ struct CommandBarView: View {
 
     private var placeholder: String {
         switch controller.phase {
-        case .ready: "Ask for changes, or press ↵ to insert"
+        case .ready: controller.isQuestion ? "Ask something else, or press ↵ to copy" : "Ask for changes, or press ↵ to insert"
         case .generating: "Writing…"
-        default: controller.target?.text.isEmpty == false ? "How should I rewrite the selection?" : "What do you want to say?"
+        default: controller.target?.text.isEmpty == false ? "How should I rewrite the selection?" : "What do you want to say? (/ for commands, ? to ask)"
         }
     }
 
@@ -169,6 +191,32 @@ struct CommandBarView: View {
             .padding(.vertical, 3)
             .foregroundStyle(on ? Color.accentColor : .secondary)
             .background(on ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.1), in: Capsule())
+    }
+
+    private var commandList: some View {
+        let typed = input.dropFirst().lowercased()
+        let matches = controller.commands.commands.keys.sorted().filter { typed.isEmpty || $0.hasPrefix(typed.prefix { !$0.isWhitespace }) }
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(matches.prefix(6), id: \.self) { name in
+                HStack(alignment: .top) {
+                    Text("/\(name)").font(.system(.callout, design: .monospaced)).foregroundStyle(Color.accentColor)
+                    Text(controller.commands.commands[name] ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+    }
+
+    private var answerArea: some View {
+        Text(controller.draft.answer ?? "Thinking…")
+            .font(.system(size: 14.5))
+            .foregroundStyle(controller.draft.answer == nil ? .secondary : .primary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
     }
 
     private var draftArea: some View {
@@ -200,7 +248,10 @@ struct CommandBarView: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
-            if controller.phase == .ready {
+            if controller.phase == .ready, controller.isQuestion {
+                hint("↵", "Copy")
+                Text("type to ask more").foregroundStyle(.secondary)
+            } else if controller.phase == .ready {
                 hint("↵", "Insert")
                 hint("↑↓", "Version")
                 Text("type to refine").foregroundStyle(.secondary)

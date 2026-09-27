@@ -272,7 +272,7 @@ struct MemoryHookTests {
         let target = TextTarget(pid: 42, text: "hey", source: .axSelection, range: NSRange(location: 0, length: 3), fullValue: "hey")
         let driver = FakeDriver(.target(target), value: "hey")
         let log = InsertLog()
-        let c = FixController(driver: driver, fixer: { _ in "Hey." }, hideAfter: .seconds(60), onFixed: { text, _ in await log.add(text, nil) })
+        let c = FixController(driver: driver, fixer: { _, _ in "Hey." }, hideAfter: .seconds(60), onFixed: { text, _ in await log.add(text, nil) })
         await c.fix()
         #expect(await log.items.map(\.0) == ["Hey."])
     }

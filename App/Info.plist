@@ -24,5 +24,9 @@
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>keybro listens only while the mic button in the command bar is on, to turn your voice into an instruction.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>keybro turns your voice into text on this Mac. Audio never leaves it.</string>
 </dict>
 </plist>

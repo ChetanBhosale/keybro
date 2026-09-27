@@ -10,11 +10,11 @@ public struct ClaudeFixer: Sendable {
         self.style = style
     }
 
-    public func request(for text: String) -> ClaudeRequest {
+    public func request(for text: String, mode: String? = nil) -> ClaudeRequest {
         ClaudeRequest(
             prompt: FixPrompt.userPrompt(text: text),
             model: .haiku,
-            systemPrompt: FixPrompt.systemPrompt(style: style),
+            systemPrompt: FixPrompt.systemPrompt(style: style, mode: mode),
             tools: [],
             thinking: false,
             timeout: .seconds(30)
@@ -22,10 +22,10 @@ public struct ClaudeFixer: Sendable {
     }
 
     /// Returns the model's raw reply. Clean it with `FixOutput.clean`.
-    public func fix(_ text: String) async throws -> String {
+    public func fix(_ text: String, mode: String? = nil) async throws -> String {
         var streamed = ""
         var final: String?
-        for try await event in runner.run(request(for: text)) {
+        for try await event in runner.run(request(for: text, mode: mode)) {
             switch event {
             case .textDelta(let chunk): streamed += chunk
             case .result(let result): final = result.text

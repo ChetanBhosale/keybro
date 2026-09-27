@@ -29,6 +29,8 @@ targets:
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         LSUIElement: true            # menu bar only, no Dock icon
+        NSMicrophoneUsageDescription: "keybro listens only while the mic button in the command bar is on, to turn your voice into an instruction."
+        NSSpeechRecognitionUsageDescription: "keybro turns your voice into text on this Mac. Audio never leaves it."
         LSMinimumSystemVersion: "26.0"
     settings:
       base:
