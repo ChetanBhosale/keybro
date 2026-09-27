@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let recorder = memoryStore.map { MemoryRecorder(store: $0) }
         self.recorder = recorder
         if let recorder {
+            // Clear anything stored before the current content rules.
+            Task { await recorder.purgeSensitive() }
             let watcher = TypingWatcher(recorder: recorder,
                                         isEnabled: { settings.isCapturing },
                                         isBlocked: { settings.isBlocked($0) })

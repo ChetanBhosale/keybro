@@ -154,6 +154,15 @@ public final class MemoryStore: Sendable {
         }
     }
 
+    /// Deletes every episode matching `shouldDelete`. Returns how many went.
+    @discardableResult
+    public func deleteEpisodes(where shouldDelete: (Episode) -> Bool) throws -> Int {
+        try db.write { db in
+            let ids = try Episode.fetchAll(db).filter(shouldDelete).compactMap(\.id)
+            return try Episode.deleteAll(db, keys: ids)
+        }
+    }
+
     public func deleteEpisode(id: Int64) throws {
         _ = try db.write { db in try Episode.deleteOne(db, key: id) }
     }

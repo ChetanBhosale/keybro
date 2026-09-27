@@ -282,3 +282,83 @@ actor InsertLog {
     var items: [(String, String?)] = []
     func add(_ text: String, _ contact: String?) { items.append((text, contact)) }
 }
+
+struct SensitiveContentTests {
+    @Test(arguments: [
+        "send nudes", "that was so SEXY", "pornhub", "watching p0rn lol", "sexy video",
+        "xvideos.com - search", "horny af", "we should have a threesome", "OnlyFans", "sex ed",
+        "want to jerk  off", "chut", "blue film dekhi",
+    ])
+    func flagsSexualContent(_ text: String) {
+        #expect(SensitiveContent.isSexual(text), "\(text)")
+    }
+
+    @Test(arguments: [
+        "bro party at my place tonight", "I live in Sussex near Middlesex", "let's grab a cocktail",
+        "saw a cockroach", "data analysis done", "the sextant is old", "Titanic was good",
+        "chutti kab hai", "chod do yaar", "can you make out what it says", "Essex", "scum", "",
+    ])
+    func leavesNormalTextAlone(_ text: String) {
+        #expect(!SensitiveContent.isSexual(text), "\(text)")
+    }
+
+    @Test func windowTitleAloneIsEnough() {
+        #expect(SensitiveContent.shouldSkip(text: "hello", windowTitle: "Pornhub - Free Videos"))
+        #expect(!SensitiveContent.shouldSkip(text: "hello", windowTitle: "Inbox - Gmail"))
+    }
+}
+
+struct SensitiveMemoryTests {
+    let store = try! MemoryStore()
+    let t0 = Date()
+
+    func s(_ value: String, _ sec: Double, title: String = "Rahul (DM) - Slack", key: String = "f") -> FieldSample {
+        FieldSample(fieldKey: key, bundleID: "com.tinyspeck.slackmacgap", appName: "Slack", windowTitle: title, value: value, at: t0.addingTimeInterval(sec))
+    }
+
+    @Test func sexualMessagesAreNeverStored() async throws {
+        let recorder = MemoryRecorder(store: store)
+        await recorder.observe(s("send nudes", 0))
+        await recorder.observe(s("send nudes", 3))
+        await recorder.observe(s("", 4))
+        #expect(try store.episodeCount() == 0)
+    }
+
+    @Test func draftThatTurnsSexualIsDeleted() async throws {
+        let recorder = MemoryRecorder(store: store)
+        await recorder.observe(s("hey you", 0))
+        await recorder.observe(s("hey you", 3))            // clean draft saved
+        #expect(try store.episodeCount() == 1)
+        await recorder.observe(s("hey you, sexy", 4))
+        await recorder.observe(s("", 5))                   // sent, but sexual
+        #expect(try store.episodeCount() == 0)
+    }
+
+    @Test func searchesOnAdultSitesAreSkipped() async throws {
+        let recorder = MemoryRecorder(store: store)
+        let title = "xvideos - Google Chrome"
+        await recorder.observe(FieldSample(fieldKey: "q", bundleID: "com.google.Chrome", windowTitle: title, value: "some search", at: t0))
+        await recorder.observe(FieldSample(fieldKey: "q", bundleID: "com.google.Chrome", windowTitle: title, value: "some search", at: t0.addingTimeInterval(3)))
+        await recorder.observe(nil)
+        #expect(try store.episodeCount() == 0)
+    }
+
+    @Test func fixAndGenerateAreFilteredToo() async throws {
+        let recorder = MemoryRecorder(store: store)
+        let target = TextTarget(pid: 1, bundleID: "net.whatsapp.WhatsApp", windowTitle: "WhatsApp", text: "", source: .axSelection)
+        await recorder.recordFix(fixed: "You look so sexy.", target: target)
+        await recorder.recordGenerate(inserted: "send nudes", target: target, contact: "Rahul")
+        await recorder.recordGenerate(inserted: "see you sunday", target: target, contact: "Rahul")
+        #expect(try store.recentEpisodes().map(\.text) == ["see you sunday"])
+    }
+
+    @Test func purgeRemovesAlreadyStoredContent() async throws {
+        try store.insert(Episode(kind: .sent, surface: "whatsapp", text: "normal message"))
+        try store.insert(Episode(kind: .sent, surface: "whatsapp", text: "pornhub premium"))
+        try store.insert(Episode(kind: .draft, surface: "web", text: "horny"))
+        let recorder = MemoryRecorder(store: store)
+        #expect(await recorder.purgeSensitive() == 2)
+        #expect(try store.recentEpisodes().map(\.text) == ["normal message"])
+        #expect(try store.search("pornhub").isEmpty)
+    }
+}

@@ -22,6 +22,11 @@ public actor MemoryRecorder {
 
     private func handle(_ event: TypingTracker.Event) throws {
         switch event {
+        case .draft(let key, let text, let sample) where SensitiveContent.shouldSkip(text: text, windowTitle: sample.windowTitle),
+             .sent(let key, let text, let sample) where SensitiveContent.shouldSkip(text: text, windowTitle: sample.windowTitle):
+            // Never stored. Drop any earlier draft from the same field too.
+            if let id = draftIDs.removeValue(forKey: key) { try store.deleteEpisode(id: id) }
+
         case .draft(let key, let text, let sample):
             let text = SecretRedactor.redact(text)
             if let id = draftIDs[key], try store.episode(id: id) != nil {
@@ -89,6 +94,7 @@ public actor MemoryRecorder {
     }
 
     private func record(_ kind: Episode.Kind, text: String, target: TextTarget, contact: String?, at date: Date) {
+        guard !SensitiveContent.shouldSkip(text: text, windowTitle: target.windowTitle, contact: contact) else { return }
         var conversation = conversation(bundleID: target.bundleID, windowTitle: target.windowTitle)
         if let contact { conversation.contact = contact }
         let text = SecretRedactor.redact(text)
@@ -97,6 +103,12 @@ public actor MemoryRecorder {
             try store.insert(Episode(kind: kind, bundleID: target.bundleID, appName: target.appName, surface: conversation.surface,
                                      entityID: person, contactRaw: conversation.contact, text: text, createdAt: date))
         } catch {}
+    }
+
+    /// Removes stored episodes the sensitive-content rules now reject. Run at launch.
+    @discardableResult
+    public func purgeSensitive() -> Int {
+        (try? store.deleteEpisodes { SensitiveContent.shouldSkip(text: $0.text, windowTitle: nil, contact: $0.contactRaw) }) ?? 0
     }
 
     /// Memory to hand Generate for this conversation and instruction.
