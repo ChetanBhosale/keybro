@@ -1,0 +1,40 @@
+# XcodeGen spec. Run `make gen` to create keybro.xcodeproj (not committed).
+name: keybro
+options:
+  bundleIdPrefix: dev.chetan
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+packages:
+  KeybroKit:
+    path: KeybroKit
+
+targets:
+  keybro:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: KeybroKit
+        product: KeybroKit
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: keybro
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSUIElement: true            # menu bar only, no Dock icon
+        LSMinimumSystemVersion: "26.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.chetan.keybro
+        SWIFT_VERSION: "6.0"
+        MARKETING_VERSION: "0.1.0"
+        # No sandbox: the Accessibility API doesn't work inside it (ship outside the App Store).
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        # Ad-hoc signing until a Developer ID exists. See README for the permission caveat.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""

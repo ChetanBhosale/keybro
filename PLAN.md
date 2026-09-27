@@ -50,9 +50,10 @@ Memory design borrows: MemPalace (verbatim episodes, retrieval without LLM), Hin
 
 ```
 keybro/
-  keybro.xcodeproj            # macOS app target (thin: entry point, Info.plist, entitlements)
-  Package.swift               # KeybroKit: all logic, testable with `swift test`
-  Sources/
+  project.yml                 # XcodeGen spec; keybro.xcodeproj is generated (make gen)
+  App/                        # thin app target: entry point, menu bar, setup window
+  KeybroKit/Package.swift     # all logic, testable with `swift test`
+  KeybroKit/Sources/
     KeybroApp/                # @main, AppDelegate, menu bar, window routing
     Capture/
       HotkeyManager.swift
