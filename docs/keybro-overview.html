@@ -1,0 +1,643 @@
+<title>keybro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#F1F2F4; --paper:#FFFFFF; --ink:#15171C; --muted:#5A616E; --faint:#8A919D; --line:#DCDFE5;
+  --accent:#E4570F; --accent-soft:#FDEBDF; --blue:#2F6FEB; --green:#1F9D55; --green-soft:#E3F5EA;
+  --win:#FBFBFC; --win-bar:#ECEDF0; --win-line:#D6D9DF; --panel:rgba(255,255,255,.92);
+  --bubble-in:#FFFFFF; --bubble-out:#DDF3D3; --chat-bg:#EFEAE2; --key:#FFFFFF; --key-edge:#C9CDD5;
+  --term:#101216; --term-ink:#D9DDE4; --term-dim:#7E8794; --shadow:0 18px 50px rgba(20,24,33,.16),0 2px 8px rgba(20,24,33,.08);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --bg:#121418; --paper:#1A1D23; --ink:#ECEEF2; --muted:#A3AAB6; --faint:#737B88; --line:#2B3038;
+  --accent:#FF7A35; --accent-soft:#3A2418; --blue:#6C9BFF; --green:#43C77E; --green-soft:#17301F;
+  --win:#1E2127; --win-bar:#262A31; --win-line:#343A43; --panel:rgba(36,40,47,.94);
+  --bubble-in:#252A31; --bubble-out:#1F3D2B; --chat-bg:#171A1E; --key:#2A2F37; --key-edge:#454C57;
+  --shadow:0 18px 50px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121418; --paper:#1A1D23; --ink:#ECEEF2; --muted:#A3AAB6; --faint:#737B88; --line:#2B3038;
+  --accent:#FF7A35; --accent-soft:#3A2418; --blue:#6C9BFF; --green:#43C77E; --green-soft:#17301F;
+  --win:#1E2127; --win-bar:#262A31; --win-line:#343A43; --panel:rgba(36,40,47,.94);
+  --bubble-in:#252A31; --bubble-out:#1F3D2B; --chat-bg:#171A1E; --key:#2A2F37; --key-edge:#454C57;
+  --shadow:0 18px 50px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body);padding:0 20px}
+.wrap{max-width:1120px;margin:0 auto;padding-block:48px 80px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(44px,7vw,76px);font-weight:800;letter-spacing:-.02em}
+h2{font-size:clamp(26px,3.4vw,36px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:20px;font-weight:700}
+p{margin:0}
+.eyebrow{font:600 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted)}
+code,.mono{font-family:var(--mono);font-size:.88em}
+kbd{display:inline-grid;place-items:center;min-width:1.9em;height:1.9em;padding:0 .45em;font:600 .82em/1 var(--mono);color:var(--ink);background:var(--key);border:1px solid var(--key-edge);border-bottom-width:3px;border-radius:7px}
+.keys{display:inline-flex;gap:4px;vertical-align:middle}
+
+/* hero */
+.hero{display:grid;gap:22px;padding-bottom:40px;border-bottom:1px solid var(--line)}
+.hero .lede{font-size:clamp(17px,2vw,20px);max-width:62ch;color:var(--muted)}
+.hero .lede b{color:var(--ink);font-weight:600}
+.hero-keys{display:flex;flex-wrap:wrap;gap:14px 28px}
+.hk{display:flex;align-items:center;gap:12px}
+.hk .keys kbd{font-size:18px}
+.hk span{font-size:14px;color:var(--muted)}
+.hk span b{display:block;color:var(--ink);font-weight:600;font-size:15px}
+
+/* flow */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:36px;border:1px solid var(--line);border-radius:14px;background:var(--paper);overflow:hidden}
+.flow div{padding:18px 18px 20px;border-right:1px solid var(--line);display:grid;gap:6px;align-content:start}
+.flow div:last-child{border-right:0}
+.flow .n{font:600 12px var(--mono);color:var(--accent)}
+.flow h3{font-size:17px}
+.flow p{font-size:13.5px;color:var(--muted)}
+
+/* feature rows */
+section.feat{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:44px;align-items:center;padding-block:64px;border-bottom:1px solid var(--line)}
+section.feat.flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+section.feat.flip .copy{order:2}
+.copy{display:grid;gap:14px;align-content:start}
+.copy ul{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.copy li{padding-left:18px;position:relative;font-size:14.5px}
+.copy li::before{content:"";position:absolute;left:0;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--accent)}
+.tag{display:inline-flex;align-items:center;gap:8px;font:500 12px var(--mono);color:var(--muted)}
+.stage{position:relative;min-width:0}
+
+/* mac window */
+.win{background:var(--win);border:1px solid var(--win-line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.win-bar{height:34px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--win-bar);border-bottom:1px solid var(--win-line)}
+.lights{display:flex;gap:7px}
+.lights i{width:11px;height:11px;border-radius:50%;background:#FF5F57}
+.lights i:nth-child(2){background:#FEBC2E}.lights i:nth-child(3){background:#28C840}
+.win-title{font:600 12.5px var(--body);color:var(--muted);flex:1;text-align:center;margin-right:48px}
+
+/* chat */
+.chat{background:var(--chat-bg);padding:16px 16px 0;display:grid;gap:8px}
+.chat-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--win);border-bottom:1px solid var(--win-line)}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#F6B26B,#E4570F);display:grid;place-items:center;color:#fff;font:700 13px var(--body);flex:none}
+.avatar.b{background:linear-gradient(135deg,#7FB3FF,#2F6FEB)}
+.avatar.g{background:linear-gradient(135deg,#8BE0AE,#1F9D55)}
+.chat-head b{font-size:14px}.chat-head small{display:block;font-size:11.5px;color:var(--faint)}
+.bub{max-width:78%;padding:7px 11px 6px;border-radius:10px;font-size:14px;background:var(--bubble-in);box-shadow:0 1px 1px rgba(0,0,0,.06)}
+.bub.out{justify-self:end;background:var(--bubble-out)}
+.bub time{display:block;text-align:right;font-size:10.5px;color:var(--faint);margin-top:2px}
+.composer{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--win);border-top:1px solid var(--win-line);margin:8px -16px 0}
+.field{flex:1;min-height:36px;display:flex;align-items:center;padding:0 12px;border-radius:18px;background:var(--bg);font-size:14px;color:var(--faint);border:1px solid var(--line)}
+.field.active{border-color:var(--accent);color:var(--ink);box-shadow:0 0 0 3px var(--accent-soft)}
+.caret{display:inline-block;width:1.5px;height:17px;background:var(--accent);margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* command bar */
+.kbar{position:relative;margin:-110px 18px 0 auto;width:min(420px,92%);background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid var(--win-line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;z-index:2}
+.kbar-in{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);font-size:14.5px}
+.kbar-in .logo{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;display:grid;place-items:center;font:800 12px var(--display);flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 0}
+.chip{font:500 11.5px var(--mono);padding:3px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+.chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.tabs{display:flex;gap:4px;padding:10px 14px 0}
+.tabs span{font-size:12px;padding:3px 10px;border-radius:7px;color:var(--muted)}
+.tabs span.sel{background:var(--ink);color:var(--paper)}
+.draft{padding:10px 14px 12px;font-size:14.5px;line-height:1.5}
+.kbar-foot{display:flex;flex-wrap:wrap;gap:14px;padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.kbar-foot kbd{font-size:10.5px;height:1.8em;min-width:1.8em;border-bottom-width:2px;margin-right:4px}
+.thread{padding:10px 14px 0;display:grid;gap:6px;font-size:13px}
+.thread .me{justify-self:end;background:var(--bg);border:1px solid var(--line);padding:4px 10px;border-radius:9px}
+
+/* fix */
+.fix-pair{display:grid;gap:16px}
+.slack{padding:14px;display:grid;gap:10px}
+.slack .lbl{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14.5px;background:var(--paper)}
+.box.after{border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.box s{color:var(--faint)}
+.pill{justify-self:start;display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:12.5px}
+.pill kbd{background:transparent;color:var(--paper);border-color:rgba(255,255,255,.35);font-size:10.5px;height:1.7em}
+
+/* menubar */
+.menubar{display:flex;justify-content:flex-end;align-items:center;gap:16px;height:28px;padding:0 14px;background:var(--win-bar);border:1px solid var(--win-line);border-radius:10px 10px 0 0;font:500 12.5px var(--body);color:var(--muted)}
+.mb-icon{width:18px;height:18px;border-radius:5px;background:var(--accent);color:#fff;display:grid;place-items:center;font:800 10px var(--display);position:relative}
+.mb-icon::after{content:"";position:absolute;right:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--green);border:1.5px solid var(--win-bar)}
+.dropdown{margin:6px 0 0 auto;width:min(320px,100%);background:var(--panel);backdrop-filter:blur(18px);border:1px solid var(--win-line);border-radius:12px;box-shadow:var(--shadow);padding:6px;font-size:13.5px}
+.dd-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 10px;border-radius:7px}
+.dd-row.hi{background:var(--accent);color:#fff}
+.dd-row small{color:var(--faint);font-family:var(--mono);font-size:11px}
+.dd-row.hi small{color:rgba(255,255,255,.8)}
+.dd-sep{height:1px;background:var(--line);margin:5px 8px}
+.dd-head{padding:8px 10px 6px;display:grid;gap:2px}
+.dd-head b{display:flex;align-items:center;gap:7px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 10px 8px}
+.stats div{background:var(--bg);border-radius:8px;padding:7px 8px;font-size:11px;color:var(--muted)}
+.stats b{display:block;font:700 17px var(--display);color:var(--ink);font-variant-numeric:tabular-nums}
+.toggle{width:32px;height:19px;border-radius:999px;background:var(--green);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;right:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff}
+
+/* app window w/ sidebar */
+.app{display:grid;grid-template-columns:170px 1fr;min-height:390px}
+.side{background:var(--win-bar);border-right:1px solid var(--win-line);padding:12px 8px;display:grid;gap:2px;align-content:start;font-size:13px}
+.side .s{padding:6px 10px;border-radius:7px;color:var(--muted);display:flex;justify-content:space-between}
+.side .s.sel{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.side .s small{font-family:var(--mono);font-size:11px}
+.side .grp{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:10px 10px 4px}
+.main{padding:16px;min-width:0}
+.graph svg{width:100%;height:auto;display:block}
+.graph .edge{stroke:var(--line);stroke-width:1.6}
+.graph .edge.hot{stroke:var(--accent);stroke-width:2.2}
+.graph .np{fill:var(--accent)}
+.graph .nj{fill:var(--blue)}
+.graph .ne{fill:var(--faint)}
+.graph .nme{fill:var(--ink)}
+.graph text{fill:var(--ink);font:500 11.5px var(--body)}
+.graph .ring{fill:none;stroke:var(--accent);stroke-width:2;opacity:.35}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--faint);margin-bottom:10px;background:var(--paper)}
+
+/* person */
+.person-top{display:flex;gap:14px;align-items:center;margin-bottom:14px}
+.person-top .avatar{width:48px;height:48px;font-size:19px}
+.person-top h3{font-size:22px}
+.handles{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.facts{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--paper)}
+.fact{display:grid;grid-template-columns:1fr auto;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13.5px}
+.fact:last-child{border-bottom:0}
+.fact small{font:500 11px var(--mono);color:var(--faint);white-space:nowrap}
+.fact.old{color:var(--faint)}
+.fact.old span{text-decoration:line-through}
+.fact .src{display:block;font:400 11px var(--mono);color:var(--faint);margin-top:2px;text-decoration:none}
+.loop{margin-top:12px;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--accent-soft);font-size:13.5px}
+.loop b{color:var(--accent)}
+.sub-h{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:14px 0 6px}
+
+/* notification */
+.notes{display:grid;gap:10px;justify-items:end}
+.notif{width:min(360px,100%);display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:12px 14px;background:var(--panel);backdrop-filter:blur(18px);border:1px solid var(--win-line);border-radius:14px;box-shadow:var(--shadow);font-size:13px}
+.notif .mb-icon{width:32px;height:32px;border-radius:8px;font-size:14px}
+.notif .mb-icon::after{display:none}
+.notif b{display:block;font-size:13.5px}
+.notif small{color:var(--faint);font-size:11px}
+.digest{width:100%;margin-top:6px}
+.digest .main{display:grid;gap:10px}
+.dg-row{display:grid;grid-template-columns:64px 1fr;gap:10px;font-size:13.5px;padding:8px 0;border-bottom:1px solid var(--line)}
+.dg-row:last-child{border-bottom:0}
+.dg-row time{font:500 12px var(--mono);color:var(--faint)}
+
+/* terminal */
+.term{background:var(--term);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;border:1px solid #242830}
+.term .win-bar{background:#1A1D22;border-bottom-color:#242830}
+.term .win-title{color:#8A919D}
+.term pre{margin:0;padding:16px 18px 18px;color:var(--term-ink);font:13px/1.65 var(--mono);white-space:pre-wrap;word-break:break-word}
+.t-dim{color:var(--term-dim)}.t-acc{color:#FF9A5C}.t-g{color:#5FD08C}.t-b{color:#8FB4FF}
+
+/* settings */
+.set{display:grid;gap:0}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;flex-wrap:wrap}
+.set-row:last-child{border-bottom:0}
+.set-row .v{color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ok{color:var(--green);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;font-size:12px}
+.seg span{padding:3px 9px;color:var(--muted)}
+.seg span.sel{background:var(--ink);color:var(--paper)}
+
+/* plan */
+.plan{padding-block:64px;display:grid;gap:28px}
+.arch{overflow-x:auto}
+.arch-grid{min-width:760px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.col{display:grid;gap:8px;align-content:start}
+.col h3{font-size:15px;font-family:var(--mono);font-weight:600;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+.blk{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+.blk b{display:block;font-size:13.5px}
+.blk span{color:var(--muted)}
+.ms{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.m{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:6px;align-content:start}
+.m .id{font:700 13px var(--mono);color:var(--accent)}
+.m h3{font-size:16px}
+.m p{font-size:13px;color:var(--muted)}
+.m .when{font:500 11.5px var(--mono);color:var(--faint)}
+.risks{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden}
+.risks div{padding:12px 14px;border-bottom:1px solid var(--line);font-size:13.5px}
+.risks div:nth-child(odd){border-right:1px solid var(--line)}
+.risks b{display:block}
+.risks span{color:var(--muted)}
+footer{padding-top:30px;color:var(--faint);font-size:13px}
+
+@media (max-width:860px){
+  section.feat,section.feat.flip{grid-template-columns:1fr;gap:28px;padding-block:48px}
+  section.feat.flip .copy{order:0}
+  .flow{grid-template-columns:1fr 1fr}
+  .flow div:nth-child(2){border-right:0}
+  .flow div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .ms{grid-template-columns:1fr 1fr}
+  .risks{grid-template-columns:1fr}
+  .risks div:nth-child(odd){border-right:0}
+}
+@media (max-width:560px){
+  .app{grid-template-columns:1fr}
+  .side{display:flex;flex-wrap:wrap;gap:4px;border-right:0;border-bottom:1px solid var(--win-line)}
+  .side .grp{display:none}
+  .ms{grid-template-columns:1fr}
+  .kbar{margin:-60px auto 0;width:96%}
+  .flow{grid-template-columns:1fr}
+  .flow div{border-right:0;border-bottom:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <span class="eyebrow">keybro for macOS</span>
+  <h1>Every text field on your Mac, with Claude Code and a memory.</h1>
+  <p class="lede">keybro lives in the menu bar. Press a hotkey in any app to <b>draft a reply that understands the conversation</b>, or to <b>fix what you typed in your own voice</b>. In the background it builds a <b>local memory</b> of people, promises and context that your Claude Code sessions can use too.</p>
+  <div class="hero-keys">
+    <div class="hk"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd></span><span><b>Generate</b>draft a reply with screen context</span></div>
+    <div class="hk"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span><span><b>Fix</b>clean English, your voice</span></div>
+  </div>
+  <div class="flow">
+    <div><span class="n">1 · Capture</span><h3>Read, not record</h3><p>Accessibility text after you pause typing. Screenshot only when you press the hotkey.</p></div>
+    <div><span class="n">2 · Understand</span><h3>Local first</h3><p>On-device model finds the contact, topic and promises. Nothing leaves your Mac.</p></div>
+    <div><span class="n">3 · Remember</span><h3>SQLite memory</h3><p>Raw episodes by day, facts and people at night. Old facts are superseded, never deleted.</p></div>
+    <div><span class="n">4 · Use</span><h3>Claude Code</h3><p>Replies, fixes and your coding sessions all read the same memory through MCP.</p></div>
+  </div>
+</header>
+
+<!-- Generate -->
+<section class="feat" id="generate">
+  <div class="copy">
+    <span class="tag"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd></span> Generate</span>
+    <h2>Say what you mean. keybro writes it.</h2>
+    <p class="muted">Click into any message box and press the hotkey. A small bar opens at your cursor. Type the idea in any language, Claude Code reads the chat on screen plus what it remembers about the person, and streams a reply in your tone.</p>
+    <ul>
+      <li>Works in WhatsApp, Slack, Gmail, iMessage, LinkedIn, X and the terminal</li>
+      <li>Screenshot of the current window only, taken on the hotkey</li>
+      <li>Uses memory: who Rahul is, your last chats, how you talk to him</li>
+      <li>Three variants (casual, safe, bold). Arrow keys to switch</li>
+      <li><kbd>↵</kbd> inserts into the field, <kbd>⇥</kbd> keeps chatting, <kbd>esc</kbd> cancels</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="win">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">WhatsApp</span></div>
+      <div class="chat-head"><span class="avatar">R</span><div><b>Rahul</b><small>online</small></div></div>
+      <div class="chat" style="min-height:330px">
+        <div class="bub">bro party at my place tonight, 8pm 🎉<time>6:12 PM</time></div>
+        <div class="bub">you're coming right??<time>6:12 PM</time></div>
+        <div class="bub out">wait let me check<time>6:20 PM</time></div>
+        <div style="height:120px"></div>
+        <div class="composer"><div class="field active"><span class="caret"></span></div></div>
+      </div>
+    </div>
+    <div class="kbar" aria-label="keybro command bar">
+      <div class="kbar-in"><span class="logo">k</span><span>sorry to rahul, can't come, work stuff</span></div>
+      <div class="chips"><span class="chip on">screen: WhatsApp (Rahul)</span><span class="chip on">memory: rahul.md</span><span class="chip">style.md</span></div>
+      <div class="tabs"><span class="sel">Casual</span><span>Safe</span><span>Bold</span></div>
+      <div class="draft">Ahh bro I can't make it tonight, stuck with some work 😭 have fun though, let's catch up this weekend?</div>
+      <div class="kbar-foot"><span><kbd>↵</kbd>Insert</span><span><kbd>⇥</kbd>Refine</span><span><kbd>↑↓</kbd>Variant</span><span><kbd>esc</kbd>Cancel</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Refine -->
+<section class="feat flip" id="refine">
+  <div class="copy">
+    <span class="tag"><kbd>⇥</kbd> Refine</span>
+    <h2>Keep talking until it sounds right.</h2>
+    <p class="muted">Press Tab and the bar turns into a short chat on the same Claude Code session. Ask for changes or ask about the screen. Nothing touches the message box until you press Enter.</p>
+    <ul>
+      <li>"shorter", "more flirty", "add a joke", "reply in Hindi"</li>
+      <li>Ask about the chat: "what time did he say?"</li>
+      <li>Select text first to rewrite it instead of writing new</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="kbar" style="margin:0;width:100%;max-width:460px">
+      <div class="kbar-in"><span class="logo">k</span><span class="muted">Refining for Rahul</span></div>
+      <div class="thread">
+        <span class="me">make it shorter, and suggest sunday brunch</span>
+      </div>
+      <div class="draft">Can't make it tonight bro 😭 sunday brunch instead? my treat</div>
+      <div class="thread" style="padding-top:0">
+        <span class="me">what time was the party again?</span>
+      </div>
+      <div class="draft muted">8pm tonight at his place (from the chat on screen).</div>
+      <div class="kbar-foot"><span><kbd>↵</kbd>Insert draft</span><span><kbd>⇥</kbd>Ask more</span><span><kbd>esc</kbd>Cancel</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Fix -->
+<section class="feat" id="fix">
+  <div class="copy">
+    <span class="tag"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span> Fix</span>
+    <h2>Fix the English, keep your voice.</h2>
+    <p class="muted">Type the rough version and press the hotkey. keybro fixes grammar and spelling in place, using your style file so it still sounds like you. No em dashes, no corporate phrasing.</p>
+    <ul>
+      <li>Fixes the selection, or the whole field when nothing is selected</li>
+      <li>Undo pill and <kbd>⌘</kbd><kbd>Z</kbd> restore the original</li>
+      <li>Hold <kbd>⌥</kbd> for professional, <kbd>⇧</kbd> for shorter</li>
+      <li>Hinglish in, clean English out</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="win">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">Slack (#eng)</span></div>
+      <div class="slack">
+        <span class="lbl">Before</span>
+        <div class="box">hey can u check the pr i think its braking the build since yesterday, also migration not run on staging</div>
+        <span class="lbl">After <span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span></span>
+        <div class="box after">Hey, can you check the PR? I think it's been breaking the build since yesterday. Also, the migration didn't run on staging.</div>
+        <span class="pill">Fixed in your voice <kbd>⌘</kbd><kbd>Z</kbd> Undo</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Menu bar / capture -->
+<section class="feat flip" id="capture">
+  <div class="copy">
+    <span class="tag">Menu bar</span>
+    <h2>Quietly remembers what you type.</h2>
+    <p class="muted">When you pause typing for about two seconds, keybro saves the text through the Accessibility API. When the field clears after you hit send, it becomes a sent message with the app, the contact and the time. No keystroke logging, no background screen recording.</p>
+    <ul>
+      <li>Contact name from the chat header (browser extension, Accessibility tree, or OCR)</li>
+      <li>Password fields and blocked apps are always skipped</li>
+      <li>One click to pause</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="menubar"><span>🔋</span><span>Wi‑Fi</span><span class="mb-icon">k</span><span>Sat 27 Sep 6:24 PM</span></div>
+    <div class="dropdown">
+      <div class="dd-head"><b><span class="dot"></span>Capturing</b><small class="muted">Now: WhatsApp (Rahul)</small></div>
+      <div class="stats">
+        <div><b>42</b>messages</div>
+        <div><b>6</b>fixes</div>
+        <div><b>3</b>replies</div>
+      </div>
+      <div class="dd-sep"></div>
+      <div class="dd-row hi"><span>Open loops</span><small>2 due</small></div>
+      <div class="dd-row"><span>Open Memory</span><small>⌘M</small></div>
+      <div class="dd-row"><span>Today's digest</span><small>⌘D</small></div>
+      <div class="dd-sep"></div>
+      <div class="dd-row"><span>Capture</span><span class="toggle" aria-label="on"></span></div>
+      <div class="dd-row"><span>Pause for 1 hour</span><small>⌥P</small></div>
+      <div class="dd-row"><span>Settings…</span><small>⌘,</small></div>
+    </div>
+  </div>
+</section>
+
+<!-- Graph -->
+<section class="feat" id="graph">
+  <div class="copy">
+    <span class="tag">Memory window</span>
+    <h2>See your world as a graph.</h2>
+    <p class="muted">People, projects and events link together as they come up in conversations. Built into the app, so you don't need Obsidian. It can still export the same notes to an Obsidian vault if you want.</p>
+    <ul>
+      <li>Click a node to open the person or topic</li>
+      <li>Search across everything, filter by app or time</li>
+      <li>Timeline view for "what was I doing last March"</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="win">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">keybro Memory</span></div>
+      <div class="app">
+        <nav class="side">
+          <span class="grp">Memory</span>
+          <span class="s sel">Graph</span>
+          <span class="s">People <small>38</small></span>
+          <span class="s">Timeline</span>
+          <span class="s">Open Loops <small>2</small></span>
+          <span class="grp">App</span>
+          <span class="s">Privacy</span>
+          <span class="s">Settings</span>
+        </nav>
+        <div class="main graph">
+          <div class="search">⌕ Search memory</div>
+          <svg viewBox="0 0 440 290" role="img" aria-label="Memory graph with people, projects and events">
+            <line class="edge hot" x1="220" y1="150" x2="110" y2="80"/>
+            <line class="edge" x1="220" y1="150" x2="340" y2="70"/>
+            <line class="edge" x1="220" y1="150" x2="355" y2="190"/>
+            <line class="edge" x1="220" y1="150" x2="120" y2="225"/>
+            <line class="edge" x1="220" y1="150" x2="245" y2="255"/>
+            <line class="edge hot" x1="110" y1="80" x2="60" y2="150"/>
+            <line class="edge hot" x1="110" y1="80" x2="190" y2="40"/>
+            <line class="edge" x1="340" y1="70" x2="400" y2="130"/>
+            <line class="edge" x1="355" y1="190" x2="400" y2="130"/>
+            <line class="edge" x1="120" y1="225" x2="60" y2="150"/>
+            <line class="edge" x1="245" y1="255" x2="355" y2="190"/>
+            <circle class="ring" cx="110" cy="80" r="20"/>
+            <circle class="nme" cx="220" cy="150" r="13"/>
+            <circle class="np" cx="110" cy="80" r="11"/>
+            <circle class="np" cx="340" cy="70" r="9"/>
+            <circle class="np" cx="120" cy="225" r="9"/>
+            <circle class="nj" cx="355" cy="190" r="10"/>
+            <circle class="nj" cx="400" cy="130" r="8"/>
+            <circle class="ne" cx="60" cy="150" r="7"/>
+            <circle class="ne" cx="190" cy="40" r="7"/>
+            <circle class="ne" cx="245" cy="255" r="7"/>
+            <text x="220" y="178" text-anchor="middle">You</text>
+            <text x="110" y="56" text-anchor="middle">Rahul</text>
+            <text x="340" y="50" text-anchor="middle">Priya</text>
+            <text x="120" y="250" text-anchor="middle">Mom</text>
+            <text x="355" y="216" text-anchor="middle">keybro</text>
+            <text x="400" y="112" text-anchor="middle">Pitch deck</text>
+            <text x="60" y="172" text-anchor="middle">Goa trip</text>
+            <text x="190" y="22" text-anchor="middle">Party (26 Sep)</text>
+            <text x="245" y="280" text-anchor="middle">Sunday brunch</text>
+          </svg>
+          <div class="legend"><span><i style="background:var(--accent)"></i>People</span><span><i style="background:var(--blue)"></i>Projects</span><span><i style="background:var(--faint)"></i>Events</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Person -->
+<section class="feat flip" id="people">
+  <div class="copy">
+    <span class="tag">People</span>
+    <h2>Every person, with context that stays current.</h2>
+    <p class="muted">One profile per person across apps. Facts carry a date and a source. When something changes, the old fact is closed instead of deleted, so memory stays correct and you can still look back.</p>
+    <ul>
+      <li>Same person across WhatsApp, Slack and Gmail, merged at night</li>
+      <li>Every fact links to the message it came from</li>
+      <li>Edit or delete any fact. The change applies everywhere</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="win">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">keybro Memory</span></div>
+      <div class="main">
+        <div class="person-top">
+          <span class="avatar">R</span>
+          <div>
+            <h3>Rahul Sharma</h3>
+            <div class="handles"><span class="chip">WhatsApp: Rahul</span><span class="chip">Slack: @rahul</span><span class="chip">rahul.s@gmail.com</span></div>
+          </div>
+        </div>
+        <div class="sub-h">Facts</div>
+        <div class="facts">
+          <div class="fact"><div>Close friend from college<span class="src">from WhatsApp, 12 Mar 2026</span></div><small>since 2019</small></div>
+          <div class="fact"><div>Lives in Bangalore<span class="src">from WhatsApp, 3 Aug 2026</span></div><small>since Aug 2026</small></div>
+          <div class="fact old"><div><span>Lives in Pune</span><span class="src">superseded 3 Aug 2026</span></div><small>until Aug 2026</small></div>
+          <div class="fact"><div>You talk casually, Hinglish and emoji<span class="src">learned from 214 messages</span></div><small>style</small></div>
+          <div class="fact"><div>Invited you to a party, you declined (work)<span class="src">from WhatsApp, 26 Sep 2026</span></div><small>26 Sep</small></div>
+        </div>
+        <div class="loop"><b>Open loop</b><span>You suggested Sunday brunch. Confirm with Rahul by Saturday.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Loops & digest -->
+<section class="feat" id="loops">
+  <div class="copy">
+    <span class="tag">Open loops and digest</span>
+    <h2>Never forget what you promised.</h2>
+    <p class="muted">When you write "I'll send it tomorrow", keybro notes it as a promise. It reminds you before it's due and closes it on its own once you actually send the thing. Each evening you get a short digest of the day.</p>
+    <ul>
+      <li>Promises detected from what you send</li>
+      <li>Closed automatically when fulfilled</li>
+      <li>Unreplied messages you meant to answer</li>
+    </ul>
+  </div>
+  <div class="stage notes">
+    <div class="notif"><span class="mb-icon">k</span><div><b>Promise due today</b>You told Priya you'd send the pitch deck by today.<br><small>WhatsApp, said Thu 25 Sep</small></div><small>now</small></div>
+    <div class="notif"><span class="mb-icon">k</span><div><b>Waiting on you</b>Mom asked about Diwali dates 2 days ago.</div><small>9:00 AM</small></div>
+    <div class="win digest">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">Today, Sat 27 Sep</span></div>
+      <div class="main">
+        <div class="dg-row"><time>10:40</time><span>Fixed the migration issue with Abin on Slack. Deploy planned Monday.</span></div>
+        <div class="dg-row"><time>14:15</time><span>Priya shared the investor list. Deck promised by tonight.</span></div>
+        <div class="dg-row"><time>18:24</time><span>Declined Rahul's party. Suggested Sunday brunch.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Claude Code -->
+<section class="feat flip" id="claude">
+  <div class="copy">
+    <span class="tag">Claude Code + MCP</span>
+    <h2>Your coding sessions remember too.</h2>
+    <p class="muted">keybro runs on your existing Claude Code login through <code>claude -p</code>. No API keys. The same memory is exposed as an MCP server, so any Claude Code or Cursor session can ask what you worked on, what was decided, or who said what.</p>
+    <ul>
+      <li>One command to connect: <code>claude mcp add keybro</code></li>
+      <li>Tools: search, get person, timeline, open loops, today's context</li>
+      <li>Scoped access: work memory only, last 7 days, and so on</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="term">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">~/linkrunner (claude)</span></div>
+<pre><span class="t-dim">&gt;</span> what did we decide about the staging migration yesterday?
+
+<span class="t-acc">⏺</span> <span class="t-b">keybro-memory</span>.search_memory(query: "staging migration", time_range: "2d")
+  <span class="t-dim">⎿  4 results (Slack #eng, WhatsApp Abin)</span>
+
+<span class="t-acc">⏺</span> Yesterday on Slack you and Abin found the migration never ran on
+  staging, which broke authenticated requests. Decision: rerun it
+  manually, add a CI check, deploy Monday.
+
+  <span class="t-g">Open loop:</span> you said you'd write the CI check before Monday.</pre>
+    </div>
+  </div>
+</section>
+
+<!-- Settings / privacy -->
+<section class="feat" id="settings">
+  <div class="copy">
+    <span class="tag">Settings and privacy</span>
+    <h2>Local by default. You stay in control.</h2>
+    <p class="muted">Memory lives in one SQLite file on your Mac. Light work runs on an on-device model, heavy work runs on your Claude Code. You pick the hotkeys, the apps it ignores, and what agents can read.</p>
+    <ul>
+      <li>Remap hotkeys, with warnings when they clash with Slack or VS Code</li>
+      <li>Blocklist for banking and password apps</li>
+      <li>Privacy view shows what was captured and when</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="win">
+      <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">Settings</span></div>
+      <div class="main set">
+        <div class="set-row"><span>Generate</span><span class="v"><span class="keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd></span><span style="color:var(--accent)">clashes with Slack</span></span></div>
+        <div class="set-row"><span>Fix</span><span class="v"><span class="keys"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>L</kbd></span></span></div>
+        <div class="set-row"><span>Engine</span><span class="v"><span class="ok">● Claude Code</span><code>~/.local/bin/claude</code></span></div>
+        <div class="set-row"><span>Model for Fix</span><span class="v"><span class="seg"><span class="sel">Haiku</span><span>Sonnet</span><span>On-device</span></span></span></div>
+        <div class="set-row"><span>Background understanding</span><span class="v">Apple on-device model</span></div>
+        <div class="set-row"><span>Never capture</span><span class="v"><span class="chip">1Password</span><span class="chip">HDFC Bank</span><span class="chip">Keychain</span><span class="chip">+ Add</span></span></div>
+        <div class="set-row"><span>Password fields</span><span class="v">Always skipped</span></div>
+        <div class="set-row"><span>Memory location</span><span class="v"><code>~/keybro-memory</code></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Build plan -->
+<section class="plan" id="plan">
+  <div class="copy" style="max-width:720px">
+    <span class="eyebrow">How we build it</span>
+    <h2>Architecture</h2>
+    <p class="muted">A native Swift app (SwiftUI and AppKit, macOS 14+), shipped as a notarized download outside the App Store because sandboxed apps can't use the Accessibility API.</p>
+  </div>
+  <div class="arch">
+    <div class="arch-grid">
+      <div class="col"><h3>Capture</h3>
+        <div class="blk"><b>HotkeyManager</b><span>global, remappable</span></div>
+        <div class="blk"><b>FocusReader</b><span>AX text, selection, caret</span></div>
+        <div class="blk"><b>TypingWatcher</b><span>AX value change, 2s debounce, sent detection</span></div>
+        <div class="blk"><b>ContactResolver</b><span>extension, AX header, OCR</span></div>
+        <div class="blk"><b>ScreenCapture</b><span>window shot on hotkey only</span></div>
+      </div>
+      <div class="col"><h3>Understand</h3>
+        <div class="blk"><b>LocalModel</b><span>Apple on-device or Ollama, text only</span></div>
+        <div class="blk"><b>Embeddings</b><span>on-device, no API</span></div>
+        <div class="blk"><b>ClaudeRunner</b><span><code>claude -p</code>, streaming, resume</span></div>
+      </div>
+      <div class="col"><h3>Remember</h3>
+        <div class="blk"><b>SQLite</b><span>episodes, facts, entities, edges, loops</span></div>
+        <div class="blk"><b>Search</b><span>FTS5 and sqlite-vec</span></div>
+        <div class="blk"><b>Nightly job</b><span>facts, merge people, reflect, close loops</span></div>
+        <div class="blk"><b>Markdown export</b><span>Obsidian vault, optional</span></div>
+      </div>
+      <div class="col"><h3>Use</h3>
+        <div class="blk"><b>CommandBar</b><span>floating panel at cursor</span></div>
+        <div class="blk"><b>Inserter</b><span>AX write, clipboard fallback</span></div>
+        <div class="blk"><b>Memory window</b><span>graph, people, timeline, loops</span></div>
+        <div class="blk"><b>MCP server</b><span>stdio, for Claude Code and Cursor</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Milestones</h2>
+  <div class="ms">
+    <div class="m"><span class="id">M0</span><h3>Skeleton</h3><p>Menu bar app, permissions onboarding, find and test <code>claude</code>.</p><span class="when">days 1 to 2</span></div>
+    <div class="m"><span class="id">M1</span><h3>Fix</h3><p>Read field, fix with Haiku, replace in place, undo pill.</p><span class="when">days 3 to 4</span></div>
+    <div class="m"><span class="id">M2</span><h3>Generate</h3><p>Window screenshot, command bar, streaming, refine, insert.</p><span class="when">days 5 to 8</span></div>
+    <div class="m"><span class="id">M3</span><h3>Memory v1</h3><p>Typing capture, contact resolver, SQLite episodes, graph window.</p><span class="when">days 9 to 12</span></div>
+    <div class="m"><span class="id">M4</span><h3>Polish</h3><p>Hotkey remap, blocklist, pause, error states.</p><span class="when">days 13 to 14</span></div>
+    <div class="m"><span class="id">M5</span><h3>Memory v2</h3><p>Local model, embeddings, hybrid search, MCP server.</p><span class="when">week 3</span></div>
+    <div class="m"><span class="id">M6</span><h3>Memory v3</h3><p>Nightly job, people profiles, open loops, digest, time travel.</p><span class="when">week 4</span></div>
+    <div class="m"><span class="id">M7</span><h3>Extras</h3><p>Voice input, per-app modes, <code>/</code> trigger, browser extension.</p><span class="when">later</span></div>
+  </div>
+
+  <h2>What to test first</h2>
+  <div class="risks">
+    <div><b>Contact name on WhatsApp Web</b><span>Tab title has no name. Needs the extension or AX header walk.</span></div>
+    <div><b>Insert in Slack, Chrome, WhatsApp</b><span>AX writes often fail. Clipboard paste fallback, then restore.</span></div>
+    <div><b>Fix speed through Claude Code</b><span>Each call takes a few seconds. Move Fix on-device if it feels slow.</span></div>
+    <div><b>Screen Recording prompt</b><span>macOS asks again monthly. Only used on the Generate hotkey.</span></div>
+  </div>
+</section>
+
+<footer>keybro plan, 27 Sep 2026. Personal project. Mockups show intended UI, not a built app.</footer>
+</div>
