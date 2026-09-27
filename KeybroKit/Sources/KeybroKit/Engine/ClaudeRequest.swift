@@ -15,6 +15,12 @@ public struct ClaudeRequest: Sendable, Equatable {
     public var resumeSessionID: String?
     /// Keep the session on disk so it can be resumed. Off for one-shot calls like Fix.
     public var persistSession: Bool
+    /// Replaces Claude Code's own system prompt. Much cheaper for plain text tasks like Fix.
+    public var systemPrompt: String?
+    /// Built-in tools Claude can see. nil keeps the default set, [] disables all tools.
+    public var tools: [String]?
+    /// Extended thinking. Off for Fix: measured 2.5s vs 4.5s wall time on Haiku.
+    public var thinking: Bool
     public var timeout: Duration
 
     public init(
@@ -24,6 +30,9 @@ public struct ClaudeRequest: Sendable, Equatable {
         addDirs: [String] = [],
         resumeSessionID: String? = nil,
         persistSession: Bool = false,
+        systemPrompt: String? = nil,
+        tools: [String]? = nil,
+        thinking: Bool = true,
         timeout: Duration = .seconds(60)
     ) {
         self.prompt = prompt
@@ -32,7 +41,15 @@ public struct ClaudeRequest: Sendable, Equatable {
         self.addDirs = addDirs
         self.resumeSessionID = resumeSessionID
         self.persistSession = persistSession
+        self.systemPrompt = systemPrompt
+        self.tools = tools
+        self.thinking = thinking
         self.timeout = timeout
+    }
+
+    /// Extra environment for the claude process.
+    public var environment: [String: String] {
+        thinking ? [:] : ["MAX_THINKING_TOKENS": "0"]
     }
 
     public var arguments: [String] {
@@ -48,6 +65,15 @@ public struct ClaudeRequest: Sendable, Equatable {
             "--strict-mcp-config",
             "--disable-slash-commands",
         ]
+        if let systemPrompt {
+            args += ["--system-prompt", systemPrompt]
+        }
+        if let tools {
+            args += ["--tools", tools.joined(separator: ",")]
+        }
+        if !thinking {
+            args += ["--settings", #"{"alwaysThinkingEnabled":false}"#]
+        }
         if !allowedTools.isEmpty {
             args += ["--allowedTools", allowedTools.joined(separator: ",")]
         }

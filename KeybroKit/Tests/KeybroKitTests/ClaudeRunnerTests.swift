@@ -77,6 +77,19 @@ struct ClaudeRunnerTests {
         #expect(kill(pid, 0) != 0, "fake claude should be dead after cancel")
     }
 
+    @Test func fixerPassesThinkingEnvAndReturnsResult() async throws {
+        let envFile = dir.appending(path: "env")
+        let runner = try fakeClaude(#"""
+        echo "$MAX_THINKING_TOKENS" > '\#(envFile.path)'
+        echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hey, "}}}'
+        echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"there."}}}'
+        echo '{"type":"result","subtype":"success","is_error":false,"result":"Hey, there.","session_id":"s"}'
+        """#)
+        let output = try await ClaudeFixer(runner: runner, style: nil).fix("hey there")
+        #expect(output == "Hey, there.")
+        #expect(try String(contentsOf: envFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines) == "0")
+    }
+
     @Test func missingBinaryIsLaunchFailure() async {
         let runner = ClaudeRunner(executablePath: "/nope/claude", workingDirectory: dir)
         let (_, error) = await collect(runner)

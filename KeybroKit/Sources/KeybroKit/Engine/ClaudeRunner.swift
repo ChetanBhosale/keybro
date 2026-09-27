@@ -14,7 +14,12 @@ public struct ClaudeRunner: Sendable {
 
     public func run(_ request: ClaudeRequest) -> AsyncThrowingStream<ClaudeEvent, Error> {
         AsyncThrowingStream { continuation in
-            let run = RunningProcess(executablePath: executablePath, workingDirectory: workingDirectory, arguments: request.arguments)
+            let run = RunningProcess(
+                executablePath: executablePath,
+                workingDirectory: workingDirectory,
+                arguments: request.arguments,
+                environment: Self.environment(executablePath: executablePath).merging(request.environment) { $1 }
+            )
 
             let work = Task {
                 do {
@@ -92,11 +97,11 @@ private final class RunningProcess: @unchecked Sendable {
         var exitWaiters: [CheckedContinuation<Void, Never>] = []
     }
 
-    init(executablePath: String, workingDirectory: URL, arguments: [String]) {
+    init(executablePath: String, workingDirectory: URL, arguments: [String], environment: [String: String]) {
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
         process.currentDirectoryURL = workingDirectory
-        process.environment = ClaudeRunner.environment(executablePath: executablePath)
+        process.environment = environment
         process.standardOutput = stdout
         process.standardError = stderr
         process.standardInput = FileHandle.nullDevice

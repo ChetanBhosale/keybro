@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
 
 struct MenuContent: View {
@@ -25,6 +26,15 @@ struct MenuContent: View {
                 .disabled(state.claudePath == nil || state.claudeTest == .running)
             TestResult(state: state)
                 .font(.callout)
+
+            Divider()
+            VStack(alignment: .leading, spacing: 6) {
+                KeyboardShortcuts.Recorder("Fix", name: .fix)
+                Text("Fixes the selected text, or the whole field if nothing is selected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Divider()
             Button("Setup…", action: openSetup)

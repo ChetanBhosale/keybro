@@ -1,4 +1,6 @@
 import AppKit
+import KeybroKit
+import KeyboardShortcuts
 import SwiftUI
 
 @main
@@ -19,8 +21,19 @@ struct KeybroApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let state = AppState()
     private var setupWindow: NSWindow?
+    private var fixController: FixController?
+    private var fixPill: FixPillPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let state = state
+        let controller = FixController(driver: AXTextFieldDriver()) { text in
+            guard let path = await state.claudePath else { throw ClaudeError.notFound }
+            return try await ClaudeFixer(runner: ClaudeRunner(executablePath: path)).fix(text)
+        }
+        fixController = controller
+        fixPill = FixPillPanel(controller: controller)
+        KeyboardShortcuts.onKeyDown(for: .fix) { controller.trigger() }
+
         if !UserDefaults.standard.bool(forKey: "didFinishSetup") || !state.accessibility {
             showSetup()
         }

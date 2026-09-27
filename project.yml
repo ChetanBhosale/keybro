@@ -9,6 +9,9 @@ options:
 packages:
   KeybroKit:
     path: KeybroKit
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "2.0.0"
 
 targets:
   keybro:
@@ -18,6 +21,7 @@ targets:
     dependencies:
       - package: KeybroKit
         product: KeybroKit
+      - package: KeyboardShortcuts
     info:
       path: App/Info.plist
       properties:

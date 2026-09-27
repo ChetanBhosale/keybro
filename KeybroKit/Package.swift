@@ -12,6 +12,8 @@ let package = Package(
         .target(name: "KeybroKit"),
         // Dev tool: runs one prompt through ClaudeRunner from the terminal.
         .executableTarget(name: "keybro-smoke", dependencies: ["KeybroKit"]),
+        // Dev tool: Fix end to end in a scratch TextEdit document (needs Accessibility).
+        .executableTarget(name: "keybro-axprobe", dependencies: ["KeybroKit"]),
         .testTarget(
             name: "KeybroKitTests",
             dependencies: ["KeybroKit"],

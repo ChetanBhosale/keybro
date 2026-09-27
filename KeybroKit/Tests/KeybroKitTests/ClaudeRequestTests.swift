@@ -32,6 +32,28 @@ struct ClaudeRequestTests {
         #expect(!args.contains("--no-session-persistence"))
     }
 
+    @Test func fixRequestIsLeanNoToolsNoThinking() {
+        let request = ClaudeFixer(runner: ClaudeRunner(executablePath: "/x"), style: nil).request(for: "hey")
+        let args = request.arguments
+        #expect(args[1] == "<text>hey</text>")
+        let s = try! #require(args.firstIndex(of: "--system-prompt"))
+        #expect(args[s + 1].contains("You fix the English"))
+        let t = try! #require(args.firstIndex(of: "--tools"))
+        #expect(args[t + 1] == "")
+        let st = try! #require(args.firstIndex(of: "--settings"))
+        #expect(args[st + 1] == #"{"alwaysThinkingEnabled":false}"#)
+        #expect(request.environment == ["MAX_THINKING_TOKENS": "0"])
+        #expect(args.contains("haiku"))
+    }
+
+    @Test func defaultsKeepClaudeCodeBehaviour() {
+        let request = ClaudeRequest(prompt: "p")
+        #expect(!request.arguments.contains("--system-prompt"))
+        #expect(!request.arguments.contains("--tools"))
+        #expect(!request.arguments.contains("--settings"))
+        #expect(request.environment.isEmpty)
+    }
+
     @Test func environmentPutsClaudeDirFirstAndDropsNestedMarker() {
         let env = ClaudeRunner.environment(executablePath: "/Users/x/.local/bin/claude")
         #expect(env["PATH"]?.hasPrefix("/Users/x/.local/bin:") == true)

@@ -11,6 +11,7 @@ Mac menu bar app: Claude Code in any text field, plus a local long-running memor
 ```bash
 make test         # KeybroKit unit tests (no network)
 make smoke        # one real Claude call through ClaudeRunner
+cd KeybroKit && swift run keybro-axprobe  # Fix end to end in a scratch TextEdit doc (hands off the keyboard)
 make run          # generate Xcode project, build, launch
 make reset-perms  # clear Accessibility / Screen Recording grants
 ```
