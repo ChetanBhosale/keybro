@@ -90,6 +90,21 @@ struct ClaudeRunnerTests {
         #expect(try String(contentsOf: envFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines) == "0")
     }
 
+    @Test func imageRequestIsWrittenToStdin() async throws {
+        let stdinFile = dir.appending(path: "stdin")
+        let runner = try fakeClaude(#"""
+        cat > '\#(stdinFile.path)'
+        echo '{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"s"}'
+        """#)
+        // Bigger than a 64 KB pipe buffer, like a real screenshot.
+        let image = ClaudeImage(data: Data(repeating: 7, count: 300_000), mediaType: "image/jpeg")
+        let request = ClaudeRequest(prompt: "hi", images: [image])
+        let (_, error) = await collect(runner, request)
+        #expect(error == nil)
+        let written = try Data(contentsOf: stdinFile)
+        #expect(written == request.stdinPayload)
+    }
+
     @Test func missingBinaryIsLaunchFailure() async {
         let runner = ClaudeRunner(executablePath: "/nope/claude", workingDirectory: dir)
         let (_, error) = await collect(runner)
@@ -97,5 +112,31 @@ struct ClaudeRunnerTests {
             Issue.record("expected launchFailed, got \(String(describing: error))")
             return
         }
+    }
+}
+
+extension ClaudeRunnerTests {
+    /// Regression: reading stderr with a second FileHandle.bytes loop held back stdout,
+    /// so Generate's text only appeared when claude exited.
+    @Test func eventsStreamBeforeTheProcessExits() async throws {
+        let runner = try fakeClaude(#"""
+        echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"early"}}}'
+        echo 'some log' >&2
+        sleep 1.5
+        echo '{"type":"result","subtype":"success","is_error":false,"result":"early","session_id":"s"}'
+        """#)
+        let start = ContinuousClock.now
+        var firstDelta: Duration?
+        for try await event in runner.run(ClaudeRequest(prompt: "x")) {
+            if case .textDelta = event, firstDelta == nil { firstDelta = ContinuousClock.now - start }
+        }
+        let first = try #require(firstDelta)
+        #expect(first < .milliseconds(1200), "first delta took \(first)")
+    }
+
+    @Test func stderrIsStillCollectedForErrors() async throws {
+        let runner = try fakeClaude("echo 'Not logged in. Please run /login' >&2; sleep 0.2; exit 1")
+        let (_, error) = await collect(runner)
+        #expect(error as? ClaudeError == .notLoggedIn)
     }
 }

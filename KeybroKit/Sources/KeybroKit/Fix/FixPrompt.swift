@@ -57,13 +57,7 @@ public enum FixOutput {
             text = String(text.dropFirst().dropLast())
         }
 
-        if !original.contains("\u{2014}") && !original.contains("\u{2013}") {
-            text = text
-                .replacingOccurrences(of: " \u{2014} ", with: ", ")
-                .replacingOccurrences(of: " \u{2013} ", with: ", ")
-                .replacingOccurrences(of: "\u{2014}", with: ", ")
-                .replacingOccurrences(of: "\u{2013}", with: "-")
-        }
+        text = TextCleanup.removeDashes(text, unlessPresentIn: original)
 
         guard !text.isEmpty else { return original }
 

@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var setupWindow: NSWindow?
     private var fixController: FixController?
     private var fixPill: FixPillPanel?
+    private var generateController: GenerateController?
+    private var commandBar: CommandBarPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let state = state
@@ -33,6 +35,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fixController = controller
         fixPill = FixPillPanel(controller: controller)
         KeyboardShortcuts.onKeyDown(for: .fix) { controller.trigger() }
+
+        let driver = AXTextFieldDriver()
+        let generate = GenerateController(
+            driver: driver,
+            screenshotter: { pid in await ScreenCapture.frontWindow(of: pid) },
+            generator: { input in
+                AsyncThrowingStream { continuation in
+                    let task = Task {
+                        guard let path = await state.claudePath else {
+                            continuation.finish(throwing: ClaudeError.notFound)
+                            return
+                        }
+                        do {
+                            for try await draft in ClaudeGenerator(runner: ClaudeRunner(executablePath: path)).generate(input) {
+                                continuation.yield(draft)
+                            }
+                            continuation.finish()
+                        } catch {
+                            continuation.finish(throwing: error)
+                        }
+                    }
+                    continuation.onTermination = { _ in task.cancel() }
+                }
+            }
+        )
+        generateController = generate
+        commandBar = CommandBarPanel(controller: generate)
+        KeyboardShortcuts.onKeyDown(for: .generate) { Task { await generate.start() } }
 
         if !UserDefaults.standard.bool(forKey: "didFinishSetup") || !state.accessibility {
             showSetup()

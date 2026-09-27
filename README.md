@@ -18,7 +18,7 @@ make reset-perms  # clear Accessibility / Screen Recording grants
 
 ## Layout
 - `App/`: SwiftUI app target (menu bar, setup window)
-- `KeybroKit/`: all logic as a Swift package (`Engine/`, `System/`), tested with `swift test`
+- `KeybroKit/`: all logic as a Swift package (`Engine/`, `Capture/`, `Insert/`, `Fix/`, `Generate/`, `Text/`, `System/`), tested with `swift test`
 - `project.yml`: XcodeGen spec. `keybro.xcodeproj` is generated, not committed
 
 ## Dev note: permissions

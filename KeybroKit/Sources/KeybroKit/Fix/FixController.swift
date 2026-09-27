@@ -2,69 +2,6 @@ import ApplicationServices
 import Foundation
 import Observation
 
-/// Text grabbed from the focused field.
-public struct FixTarget: @unchecked Sendable {
-    public enum Source: Equatable, Sendable {
-        /// Selected text read through Accessibility.
-        case axSelection
-        /// The whole field read through Accessibility (nothing selected).
-        case axWholeValue
-        /// Selection copied with ⌘C because Accessibility couldn't read it.
-        case clipboardSelection
-        /// ⌘A then ⌘C inside a text field Accessibility couldn't read.
-        case clipboardSelectAll
-    }
-
-    public var pid: pid_t
-    public var text: String
-    public var source: Source
-    /// UTF-16 range of `text` inside `fullValue` (Accessibility sources only).
-    public var range: NSRange?
-    /// Whole field value when captured, used to detect edits made while Claude runs.
-    public var fullValue: String?
-    /// Where to show the pill, in AppKit screen coordinates.
-    public var anchor: CGRect?
-    public var element: AXUIElement?
-
-    public init(pid: pid_t, text: String, source: Source, range: NSRange? = nil, fullValue: String? = nil, anchor: CGRect? = nil, element: AXUIElement? = nil) {
-        self.pid = pid
-        self.text = text
-        self.source = source
-        self.range = range
-        self.fullValue = fullValue
-        self.anchor = anchor
-        self.element = element
-    }
-}
-
-public enum CaptureResult: Sendable {
-    case target(FixTarget)
-    case noAccess
-    case secureField
-    case nothingToFix(anchor: CGRect?)
-    case tooLong(anchor: CGRect?)
-}
-
-public enum ReplaceOutcome: Equatable, Sendable {
-    /// Written through Accessibility and read back. Range is the inserted text.
-    case accessibility(NSRange)
-    /// Written through Accessibility but the app didn't report the expected value back.
-    case unverified
-    case pasted
-    case failed
-}
-
-/// Reads and writes the focused text field. The real one uses Accessibility; tests use a fake.
-@MainActor
-public protocol TextFieldDriver: AnyObject {
-    func capture() async -> CaptureResult
-    func currentValue(of target: FixTarget) -> String?
-    func frontmostPID() -> pid_t?
-    func replace(_ target: FixTarget, with text: String) async -> ReplaceOutcome
-    func undo(_ target: FixTarget, outcome: ReplaceOutcome, original: String, fixed: String) async
-    func copyToClipboard(_ text: String)
-}
-
 public enum FixState: Equatable, Sendable {
     case idle
     case working(anchor: CGRect?)
@@ -91,7 +28,7 @@ public final class FixController {
     private let hideAfter: Duration
     private var runTask: Task<Void, Never>?
     private var hideTask: Task<Void, Never>?
-    private var last: (target: FixTarget, outcome: ReplaceOutcome, original: String, fixed: String)?
+    private var last: (target: TextTarget, outcome: ReplaceOutcome, original: String, fixed: String)?
 
     public init(driver: TextFieldDriver, fixer: @escaping Fixer, hideAfter: Duration = .seconds(5)) {
         self.driver = driver
@@ -117,7 +54,7 @@ public final class FixController {
         hideTask?.cancel()
         last = nil
 
-        let target: FixTarget
+        let target: TextTarget
         switch await driver.capture() {
         case .target(let t):
             target = t

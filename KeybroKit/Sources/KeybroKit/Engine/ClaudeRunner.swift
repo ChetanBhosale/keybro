@@ -18,6 +18,7 @@ public struct ClaudeRunner: Sendable {
                 executablePath: executablePath,
                 workingDirectory: workingDirectory,
                 arguments: request.arguments,
+                stdin: request.stdinPayload,
                 environment: Self.environment(executablePath: executablePath).merging(request.environment) { $1 }
             )
 
@@ -95,16 +96,23 @@ private final class RunningProcess: @unchecked Sendable {
         var timedOut = false
         var exitCode: Int32?
         var exitWaiters: [CheckedContinuation<Void, Never>] = []
+        var stderr = Data()
+        var stderrDone = false
+        var stderrWaiters: [CheckedContinuation<Void, Never>] = []
     }
 
-    init(executablePath: String, workingDirectory: URL, arguments: [String], environment: [String: String]) {
+    private let stdinData: Data?
+    private let stdin = Pipe()
+
+    init(executablePath: String, workingDirectory: URL, arguments: [String], stdin stdinData: Data?, environment: [String: String]) {
+        self.stdinData = stdinData
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
         process.currentDirectoryURL = workingDirectory
         process.environment = environment
         process.standardOutput = stdout
         process.standardError = stderr
-        process.standardInput = FileHandle.nullDevice
+        process.standardInput = stdinData == nil ? FileHandle.nullDevice : stdin
         process.terminationHandler = { [weak self] p in
             self?.didExit(p.terminationStatus)
         }
@@ -121,7 +129,26 @@ private final class RunningProcess: @unchecked Sendable {
 
     func start() throws {
         try FileManager.default.createDirectory(at: process.currentDirectoryURL!, withIntermediateDirectories: true)
+        // A second FileHandle.bytes reader would stall stdout until stderr closes
+        // (all streamed text arrived at once), so collect stderr with a handler instead.
+        stderr.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                self?.finishStderr()
+            } else {
+                self?.state.withLock { $0.stderr.append(chunk) }
+            }
+        }
         try process.run()
+        if let stdinData {
+            // Pipe buffers are 64 KB and a screenshot is bigger, so write off the cooperative pool.
+            let handle = stdin.fileHandleForWriting
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? handle.write(contentsOf: stdinData)
+                try? handle.close()
+            }
+        }
     }
 
     var stdoutLines: AsyncLineSequence<FileHandle.AsyncBytes> {
@@ -129,11 +156,24 @@ private final class RunningProcess: @unchecked Sendable {
     }
 
     func readAllStderr() async -> String {
-        var data = Data()
-        do {
-            for try await byte in stderr.fileHandleForReading.bytes { data.append(byte) }
-        } catch {}
-        return String(decoding: data, as: UTF8.self)
+        await withCheckedContinuation { continuation in
+            let done = state.withLock { s in
+                if s.stderrDone { return true }
+                s.stderrWaiters.append(continuation)
+                return false
+            }
+            if done { continuation.resume() }
+        }
+        return String(decoding: state.withLock { $0.stderr }, as: UTF8.self)
+    }
+
+    private func finishStderr() {
+        let waiters = state.withLock { s in
+            s.stderrDone = true
+            defer { s.stderrWaiters = [] }
+            return s.stderrWaiters
+        }
+        waiters.forEach { $0.resume() }
     }
 
     func exited() async {

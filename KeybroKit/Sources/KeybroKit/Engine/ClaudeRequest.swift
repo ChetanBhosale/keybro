@@ -1,11 +1,24 @@
 import Foundation
 
+public struct ClaudeImage: Sendable, Equatable {
+    public var data: Data
+    public var mediaType: String
+
+    public init(data: Data, mediaType: String) {
+        self.data = data
+        self.mediaType = mediaType
+    }
+}
+
 public struct ClaudeRequest: Sendable, Equatable {
     public enum Model: String, Sendable {
         case haiku, sonnet, opus
     }
 
     public var prompt: String
+    /// Sent inline with the prompt (stream-json on stdin). One model turn, no Read tool:
+    /// measured 5.0s vs 9.3s for a screenshot.
+    public var images: [ClaudeImage]
     public var model: Model
     /// Tools Claude may use without asking, e.g. ["Read"] to read a screenshot.
     public var allowedTools: [String]
@@ -25,6 +38,7 @@ public struct ClaudeRequest: Sendable, Equatable {
 
     public init(
         prompt: String,
+        images: [ClaudeImage] = [],
         model: Model = .haiku,
         allowedTools: [String] = [],
         addDirs: [String] = [],
@@ -36,6 +50,7 @@ public struct ClaudeRequest: Sendable, Equatable {
         timeout: Duration = .seconds(60)
     ) {
         self.prompt = prompt
+        self.images = images
         self.model = model
         self.allowedTools = allowedTools
         self.addDirs = addDirs
@@ -52,9 +67,24 @@ public struct ClaudeRequest: Sendable, Equatable {
         thinking ? [:] : ["MAX_THINKING_TOKENS": "0"]
     }
 
+    /// The user message as one stream-json line, when the request carries images.
+    public var stdinPayload: Data? {
+        guard !images.isEmpty else { return nil }
+        var content: [[String: Any]] = images.map { image in
+            ["type": "image", "source": ["type": "base64", "media_type": image.mediaType, "data": image.data.base64EncodedString()]]
+        }
+        content.append(["type": "text", "text": prompt])
+        let line: [String: Any] = ["type": "user", "message": ["role": "user", "content": content]]
+        guard var data = try? JSONSerialization.data(withJSONObject: line, options: [.sortedKeys]) else { return nil }
+        data.append(0x0A)
+        return data
+    }
+
     public var arguments: [String] {
-        var args = [
-            "-p", prompt,
+        var args = images.isEmpty
+            ? ["-p", prompt]
+            : ["-p", "--input-format", "stream-json"]
+        args += [
             "--model", model.rawValue,
             "--output-format", "stream-json",
             "--verbose",

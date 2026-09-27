@@ -32,7 +32,8 @@ public final class AXTextFieldDriver: TextFieldDriver {
             return .secureField
         }
 
-        if let element, let target = axTarget(element: element, pid: pid, role: role) {
+        if let element, var target = axTarget(element: element, pid: pid, role: role) {
+            target.appName = app.localizedName
             return target.text.count > Self.maxCharacters ? .tooLong(anchor: target.anchor) : .target(target)
         }
 
@@ -43,7 +44,7 @@ public final class AXTextFieldDriver: TextFieldDriver {
         defer { snapshot.restore() }
 
         NSPasteboard.general.clearContents()
-        var source = FixTarget.Source.clipboardSelection
+        var source = TextTarget.Source.clipboardSelection
         var copied = await copy()
         // Only select-all when we know focus is in a text field, never on a page or a file list.
         if (copied ?? "").isEmpty, let role, AX.textRoles.contains(role) {
@@ -56,10 +57,53 @@ public final class AXTextFieldDriver: TextFieldDriver {
             return .nothingToFix(anchor: anchor)
         }
         if text.count > Self.maxCharacters { return .tooLong(anchor: anchor) }
-        return .target(FixTarget(pid: pid, text: text, source: source, anchor: anchor, element: element))
+        return .target(TextTarget(pid: pid, appName: app.localizedName, text: text, source: source, anchor: anchor, element: element))
     }
 
-    private func axTarget(element: AXUIElement, pid: pid_t, role: String?) -> FixTarget? {
+    public func captureForInsert() async -> CaptureResult {
+        guard AXIsProcessTrusted() else { return .noAccess }
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else {
+            return .nothingToFix(anchor: nil)
+        }
+        let pid = app.processIdentifier
+        if manualAccessibilityPIDs.insert(pid).inserted {
+            AX.enableManualAccessibility(pid)
+        }
+        let element = AX.focusedElement(in: pid)
+        let role = element.flatMap { AX.string($0, "AXRole") }
+        let subrole = element.flatMap { AX.string($0, "AXSubrole") }
+        if role == "AXSecureTextField" || subrole == "AXSecureTextField" {
+            return .secureField
+        }
+
+        if let element, let value = AX.string(element, "AXValue"),
+           let selection = AX.range(element, "AXSelectedTextRange"),
+           NSMaxRange(selection) <= (value as NSString).length {
+            let selected = (value as NSString).substring(with: selection)
+            let caret = NSRange(location: NSMaxRange(selection), length: 0)
+            let anchor = AX.bounds(of: caret, in: element) ?? AX.frame(of: element)
+            return .target(TextTarget(pid: pid, appName: app.localizedName, text: selected, source: .axSelection,
+                                      range: selection, fullValue: value, anchor: anchor, element: element))
+        }
+
+        // Accessibility can't see the field: insert by pasting at the caret. No ⌘C probe here,
+        // because some editors copy the whole line when nothing is selected.
+        let anchor = element.flatMap(AX.frame(of:)) ?? mouseAnchor()
+        return .target(TextTarget(pid: pid, appName: app.localizedName, text: "", source: .clipboardSelection, anchor: anchor, element: element))
+    }
+
+    public func activate(pid: pid_t) async -> Bool {
+        if frontmostPID() == pid { return true }
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return false }
+        app.activate()
+        for _ in 0..<30 {
+            try? await Task.sleep(for: .milliseconds(20))
+            if frontmostPID() == pid { return true }
+        }
+        return false
+    }
+
+    private func axTarget(element: AXUIElement, pid: pid_t, role: String?) -> TextTarget? {
         guard let value = AX.string(element, "AXValue") else { return nil }
         let full = value as NSString
 
@@ -68,7 +112,7 @@ public final class AXTextFieldDriver: TextFieldDriver {
            NSMaxRange(range) <= full.length,
            full.substring(with: range) == selected {
             let anchor = AX.bounds(of: range, in: element) ?? AX.frame(of: element)
-            return FixTarget(pid: pid, text: selected, source: .axSelection, range: range, fullValue: value, anchor: anchor, element: element)
+            return TextTarget(pid: pid, text: selected, source: .axSelection, range: range, fullValue: value, anchor: anchor, element: element)
         }
 
         guard let role, AX.textRoles.contains(role),
@@ -77,10 +121,10 @@ public final class AXTextFieldDriver: TextFieldDriver {
         let range = NSRange(location: 0, length: full.length)
         let caret = AX.range(element, "AXSelectedTextRange").map { NSRange(location: $0.location, length: 0) }
         let anchor = caret.flatMap { AX.bounds(of: $0, in: element) } ?? AX.frame(of: element)
-        return FixTarget(pid: pid, text: value, source: .axWholeValue, range: range, fullValue: value, anchor: anchor, element: element)
+        return TextTarget(pid: pid, text: value, source: .axWholeValue, range: range, fullValue: value, anchor: anchor, element: element)
     }
 
-    public func currentValue(of target: FixTarget) -> String? {
+    public func currentValue(of target: TextTarget) -> String? {
         target.element.flatMap { AX.string($0, "AXValue") }
     }
 
@@ -88,7 +132,7 @@ public final class AXTextFieldDriver: TextFieldDriver {
         NSWorkspace.shared.frontmostApplication?.processIdentifier
     }
 
-    public func replace(_ target: FixTarget, with text: String) async -> ReplaceOutcome {
+    public func replace(_ target: TextTarget, with text: String) async -> ReplaceOutcome {
         switch target.source {
         case .axSelection, .axWholeValue:
             guard let element = target.element, let range = target.range, let before = target.fullValue else { return .failed }
@@ -111,7 +155,7 @@ public final class AXTextFieldDriver: TextFieldDriver {
         }
     }
 
-    public func undo(_ target: FixTarget, outcome: ReplaceOutcome, original: String, fixed: String) async {
+    public func undo(_ target: TextTarget, outcome: ReplaceOutcome, original: String, fixed: String) async {
         if case .accessibility(let range) = outcome, let element = target.element {
             AX.setRange(element, "AXSelectedTextRange", range)
             if AX.setString(element, "AXSelectedText", original) { return }

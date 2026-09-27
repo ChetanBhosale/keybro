@@ -18,14 +18,25 @@ final class FakeDriver: TextFieldDriver {
         self.value = value
     }
 
+    var insertCapture: CaptureResult?
+    var activateResult = true
+    var activated: [pid_t] = []
+    var replacedTargets: [TextTarget] = []
+
     func capture() async -> CaptureResult { captureResult }
-    func currentValue(of target: FixTarget) -> String? { value }
+    func captureForInsert() async -> CaptureResult { insertCapture ?? captureResult }
+    func activate(pid: pid_t) async -> Bool {
+        activated.append(pid)
+        return activateResult
+    }
+    func currentValue(of target: TextTarget) -> String? { value }
     func frontmostPID() -> pid_t? { pid }
-    func replace(_ target: FixTarget, with text: String) async -> ReplaceOutcome {
+    func replace(_ target: TextTarget, with text: String) async -> ReplaceOutcome {
         replaced.append(text)
+        replacedTargets.append(target)
         return replaceOutcome
     }
-    func undo(_ target: FixTarget, outcome: ReplaceOutcome, original: String, fixed: String) async {
+    func undo(_ target: TextTarget, outcome: ReplaceOutcome, original: String, fixed: String) async {
         undone.append((outcome, original))
     }
     func copyToClipboard(_ text: String) { copied.append(text) }
@@ -40,8 +51,8 @@ actor FixerCalls {
 struct FixControllerTests {
     let calls = FixerCalls()
 
-    func target(_ text: String, source: FixTarget.Source = .axSelection, full: String? = nil) -> CaptureResult {
-        .target(FixTarget(pid: 42, text: text, source: source, range: NSRange(location: 0, length: (text as NSString).length), fullValue: full ?? text))
+    func target(_ text: String, source: TextTarget.Source = .axSelection, full: String? = nil) -> CaptureResult {
+        .target(TextTarget(pid: 42, text: text, source: source, range: NSRange(location: 0, length: (text as NSString).length), fullValue: full ?? text))
     }
 
     func controller(_ driver: FakeDriver, reply: String = "Hey, can you check the PR?", error: Error? = nil) -> FixController {

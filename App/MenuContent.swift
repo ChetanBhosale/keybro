@@ -29,8 +29,9 @@ struct MenuContent: View {
 
             Divider()
             VStack(alignment: .leading, spacing: 6) {
+                KeyboardShortcuts.Recorder("Generate", name: .generate)
                 KeyboardShortcuts.Recorder("Fix", name: .fix)
-                Text("Fixes the selected text, or the whole field if nothing is selected.")
+                Text("Generate writes a message from what you type and what's on screen. Fix cleans up the selected text, or the whole field.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
