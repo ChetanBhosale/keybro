@@ -37,10 +37,12 @@ public struct ClaudeRunner: Sendable {
                 let stderrTask = Task { await run.readAllStderr() }
 
                 var result: ClaudeResult?
+                var limitResetsAt: Date?
                 do {
                     for try await line in run.stdoutLines {
                         guard let event = StreamJSONParser.parse(line) else { continue }
                         if case .result(let r) = event { result = r }
+                        if case .rateLimit(let status, let resetsAt) = event, status != "allowed" { limitResetsAt = resetsAt }
                         continuation.yield(event)
                     }
                 } catch {
@@ -54,13 +56,17 @@ public struct ClaudeRunner: Sendable {
                 if let result, !result.isError {
                     continuation.finish()
                 } else {
-                    continuation.finish(throwing: ClaudeError.classify(
+                    var error = ClaudeError.classify(
                         exitCode: run.exitCode,
                         stderr: stderr,
                         resultText: result?.text,
                         apiErrorStatus: result?.apiErrorStatus,
                         timedOut: run.timedOut
-                    ))
+                    )
+                    if case .rateLimited = error, let limitResetsAt {
+                        error = .rateLimited("It resets at \(limitResetsAt.formatted(date: .omitted, time: .shortened)).")
+                    }
+                    continuation.finish(throwing: error)
                 }
             }
 

@@ -163,6 +163,42 @@ public final class MemoryStore: Sendable {
         }
     }
 
+    /// "Forget the last hour": deletes everything created or edited since `date`.
+    @discardableResult
+    public func forget(since date: Date) throws -> Int {
+        try db.write { db in
+            try Episode.filter(Column("createdAt") >= date || Column("updatedAt") >= date).deleteAll(db)
+        }
+    }
+
+    /// Deletes all episodes and people. The file stays, empty.
+    public func deleteEverything() throws {
+        try db.write { db in
+            try Episode.deleteAll(db)
+            try Entity.deleteAll(db)
+        }
+        try db.vacuum()
+    }
+
+    public struct AppCount: Equatable, Sendable {
+        public var surface: String
+        public var appName: String?
+        public var count: Int
+        public var last: Date?
+    }
+
+    /// What was captured since `date`, per app. For the privacy view.
+    public func capturedByApp(since date: Date) throws -> [AppCount] {
+        try db.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT surface, MAX(appName) AS appName, COUNT(*) AS count, MAX(createdAt) AS last
+                FROM episodes WHERE createdAt >= ? GROUP BY surface ORDER BY count DESC
+                """, arguments: [date]).map {
+                AppCount(surface: $0["surface"], appName: $0["appName"], count: $0["count"], last: $0["last"])
+            }
+        }
+    }
+
     public func deleteEpisode(id: Int64) throws {
         _ = try db.write { db in try Episode.deleteOne(db, key: id) }
     }

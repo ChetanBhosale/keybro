@@ -10,7 +10,7 @@ struct KeybroApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContent(state: delegate.state, memory: delegate.memorySettings, memoryAvailable: delegate.memoryStore != nil,
-                        openSetup: delegate.showSetup, openMemory: delegate.showMemory)
+                        openSetup: delegate.showSetup, openMemory: delegate.showMemory, openSettings: delegate.showSettings)
         } label: {
             Image(systemName: "keyboard")
         }
@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var typingWatcher: TypingWatcher?
     private var setupWindow: NSWindow?
     private var memoryWindow: NSWindow?
+    private var settingsWindow: NSWindow?
     private var fixController: FixController?
     private var fixPill: FixPillPanel?
     private var generateController: GenerateController?
@@ -120,6 +121,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate()
         memoryWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func showSettings() {
+        if settingsWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "keybro Settings"
+            window.isReleasedWhenClosed = false
+            window.contentViewController = NSHostingController(
+                rootView: SettingsView(state: state, memory: memorySettings, store: memoryStore, openMemory: { [weak self] in self?.showMemory() })
+            )
+            window.center()
+            settingsWindow = window
+        }
+        NSApp.activate()
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     func showSetup() {

@@ -8,6 +8,7 @@ struct MenuContent: View {
     var memoryAvailable: Bool
     var openSetup: () -> Void
     var openMemory: () -> Void
+    var openSettings: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -66,6 +67,8 @@ struct MenuContent: View {
             }
 
             Divider()
+            Button("Settings…", action: openSettings)
+                .keyboardShortcut(",")
             Button("Setup…", action: openSetup)
             Button("Quit keybro") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")

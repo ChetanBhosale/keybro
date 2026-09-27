@@ -140,3 +140,16 @@ extension ClaudeRunnerTests {
         #expect(error as? ClaudeError == .notLoggedIn)
     }
 }
+
+extension ClaudeRunnerTests {
+    @Test func usageLimitSaysWhenItResets() async throws {
+        let runner = try fakeClaude(#"""
+        echo '{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1790508000}}'
+        echo '{"type":"result","subtype":"success","is_error":true,"result":"Claude usage limit reached","session_id":"s"}'
+        exit 1
+        """#)
+        let (_, error) = await collect(runner)
+        guard case .rateLimited(let detail) = error as? ClaudeError else { Issue.record("expected rateLimited, got \(String(describing: error))"); return }
+        #expect(detail.hasPrefix("It resets at "))
+    }
+}
