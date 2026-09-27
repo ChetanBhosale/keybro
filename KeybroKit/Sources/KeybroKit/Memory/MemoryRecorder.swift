@@ -4,14 +4,17 @@ import Foundation
 /// Everything passes through `SecretRedactor` first.
 public actor MemoryRecorder {
     public let store: MemoryStore
+    /// Meaning-aware search for Generate context; plain keyword search when nil.
+    private let search: HybridSearch?
     private var tracker: TypingTracker
     private var draftIDs: [String: Int64] = [:]
     /// Contact names Claude read from a screenshot, per window, for apps whose title doesn't say.
     private var learnedContacts: [String: String] = [:]
 
-    public init(store: MemoryStore, tracker: TypingTracker = TypingTracker()) {
+    public init(store: MemoryStore, tracker: TypingTracker = TypingTracker(), search: HybridSearch? = nil) {
         self.store = store
         self.tracker = tracker
+        self.search = search
     }
 
     public func observe(_ sample: FieldSample?) {
@@ -112,9 +115,11 @@ public actor MemoryRecorder {
     }
 
     /// Memory to hand Generate for this conversation and instruction.
-    public func context(instruction: String, target: TextTarget) -> String? {
+    public func context(instruction: String, target: TextTarget) async -> String? {
         let conversation = conversation(bundleID: target.bundleID, windowTitle: target.windowTitle)
-        return try? ContextBuilder.build(store: store, instruction: instruction, contact: conversation.contact, surface: conversation.surface)
+        let related = try? await (search ?? HybridSearch(store: store)).search(instruction, limit: 6)
+        return try? ContextBuilder.build(store: store, instruction: instruction, contact: conversation.contact,
+                                         surface: conversation.surface, related: related)
     }
 }
 
@@ -124,7 +129,8 @@ public enum ContextBuilder {
 
     /// Recent messages with the person (from the window or named in the instruction),
     /// plus older messages that share words with the instruction.
-    public static func build(store: MemoryStore, instruction: String, contact: String?, surface: String, now: Date = Date()) throws -> String? {
+    public static func build(store: MemoryStore, instruction: String, contact: String?, surface: String,
+                             related relatedHits: [Episode]? = nil, now: Date = Date()) throws -> String? {
         var people: [Entity] = []
         if let contact, let id = try store.findPerson(named: contact), let entity = try store.person(id: id) {
             people.append(entity)
@@ -139,10 +145,19 @@ public enum ContextBuilder {
             let episodes = try store.episodes(forPerson: person.id!, limit: 8).filter { $0.kind != .draft && $0.kind != .fix }
             guard !episodes.isEmpty else { continue }
             episodes.forEach { seen.insert($0.id!) }
-            sections.append("Your recent messages with \(person.name):\n" + episodes.map { line($0, now: now) }.joined(separator: "\n"))
+            var section = "Your recent messages with \(person.name):\n" + episodes.map { line($0, now: now) }.joined(separator: "\n")
+            let facts = try store.facts(entityID: person.id!)
+            if !facts.isEmpty {
+                section = "What you know about \(person.name): " + facts.prefix(8).map { "\($0.predicate) \($0.object)" }.joined(separator: "; ") + "\n" + section
+            }
+            let loops = try store.loops(entityID: person.id!).filter { $0.status == .open }
+            if !loops.isEmpty {
+                section += "\nYou promised \(person.name): " + loops.map(\.text).joined(separator: "; ")
+            }
+            sections.append(section)
         }
 
-        let related = try store.search(instruction, limit: 6).filter { !seen.contains($0.id!) && $0.kind != .draft }
+        let related = try (relatedHits ?? store.search(instruction, limit: 6)).filter { !seen.contains($0.id!) && $0.kind != .draft }
         if !related.isEmpty {
             sections.append("Related things you wrote before:\n" + related.prefix(4).map { line($0, now: now) }.joined(separator: "\n"))
         }

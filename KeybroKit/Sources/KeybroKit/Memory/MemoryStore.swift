@@ -6,6 +6,8 @@ import GRDB
 public struct Episode: Codable, Equatable, Sendable, FetchableRecord, MutablePersistableRecord {
     public enum Kind: String, Codable, Sendable {
         case sent, draft, fix, generate
+        /// Saved on purpose, e.g. by Claude Code through MCP `remember`.
+        case note
     }
 
     public var id: Int64?
@@ -75,14 +77,17 @@ public struct MemoryGraph: Equatable, Sendable {
 
 /// Local SQLite memory at ~/keybro-memory/memory.db.
 public final class MemoryStore: Sendable {
-    let db: DatabaseQueue
+    /// WAL pool on disk so the app and the MCP server can read and write together.
+    let db: any DatabaseWriter
 
     public init(url: URL) throws {
         let folder = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // Only you can read your memory. SQLite's side files inherit the database's mode.
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
-        db = try DatabaseQueue(path: url.path)
+        var config = Configuration()
+        config.busyMode = .timeout(5)
+        db = try DatabasePool(path: url.path, configuration: config)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         try Self.migrator.migrate(db)
     }
@@ -129,6 +134,53 @@ public final class MemoryStore: Sendable {
                 t.column("contactRaw")
             }
         }
+        migrator.registerMigration("v2-embeddings") { db in
+            // One vector per episode, from a local embedding model. Cleared when the text changes.
+            try db.create(table: "embeddings") { t in
+                t.primaryKey("episodeID", .integer).references("episodes", onDelete: .cascade)
+                t.column("model", .text).notNull()
+                t.column("vector", .blob).notNull()
+            }
+        }
+        migrator.registerMigration("v3-knowledge") { db in
+            try db.alter(table: "episodes") { t in t.add(column: "processedAt", .datetime) }
+            // Facts with a validity window. A new value for a single-valued fact closes the old one.
+            try db.create(table: "facts") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("entityID", .integer).references("entities", onDelete: .cascade).indexed()
+                t.column("subject", .text).notNull()
+                t.column("predicate", .text).notNull()
+                t.column("object", .text).notNull()
+                t.column("validFrom", .datetime).notNull()
+                t.column("validTo", .datetime)
+                t.column("recordedAt", .datetime).notNull()
+                t.column("supersededBy", .integer)
+                t.column("sourceEpisodeID", .integer).references("episodes", onDelete: .setNull)
+            }
+            try db.create(table: "loops") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("entityID", .integer).references("entities", onDelete: .setNull)
+                t.column("person", .text)
+                t.column("text", .text).notNull()
+                t.column("dueAt", .datetime)
+                t.column("status", .text).notNull().defaults(to: "open")
+                t.column("createdAt", .datetime).notNull()
+                t.column("sourceEpisodeID", .integer).references("episodes", onDelete: .setNull)
+                t.column("closedAt", .datetime)
+                t.column("notifiedAt", .datetime)
+            }
+            try db.create(table: "profiles") { t in
+                t.primaryKey("entityID", .integer).references("entities", onDelete: .cascade)
+                t.column("summary", .text).notNull()
+                t.column("patterns", .text).notNull().defaults(to: "")
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.create(table: "digests") { t in
+                t.primaryKey("day", .text)
+                t.column("text", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 
@@ -147,10 +199,12 @@ public final class MemoryStore: Sendable {
     public func update(episodeID: Int64, text: String, kind: Episode.Kind? = nil, at date: Date = Date()) throws {
         try db.write { db in
             guard var e = try Episode.fetchOne(db, key: episodeID) else { return }
+            let textChanged = e.text != text
             e.text = text
             if let kind { e.kind = kind }
             e.updatedAt = date
             try e.update(db)
+            if textChanged { try db.execute(sql: "DELETE FROM embeddings WHERE episodeID = ?", arguments: [episodeID]) }
         }
     }
 
@@ -177,7 +231,7 @@ public final class MemoryStore: Sendable {
             try Episode.deleteAll(db)
             try Entity.deleteAll(db)
         }
-        try db.vacuum()
+        try db.writeWithoutTransaction { try $0.execute(sql: "VACUUM") }
     }
 
     public struct AppCount: Equatable, Sendable {
@@ -334,6 +388,46 @@ public final class MemoryStore: Sendable {
             }
         }
         return MemoryGraph(people: people, edges: edges)
+    }
+
+    // MARK: - Embeddings
+
+    /// Episodes without a vector yet (or with one from a different model), oldest first.
+    public func episodesNeedingEmbedding(model: String, limit: Int) throws -> [Episode] {
+        try db.read { db in
+            try Episode.fetchAll(db, sql: """
+                SELECT episodes.* FROM episodes LEFT JOIN embeddings ON embeddings.episodeID = episodes.id
+                WHERE embeddings.episodeID IS NULL OR embeddings.model != ?
+                ORDER BY episodes.id LIMIT ?
+                """, arguments: [model, limit])
+        }
+    }
+
+    public func saveEmbedding(episodeID: Int64, model: String, vector: [Float]) throws {
+        let blob = vector.withUnsafeBufferPointer { Data(buffer: $0) }
+        try db.write { db in
+            try db.execute(sql: "INSERT OR REPLACE INTO embeddings (episodeID, model, vector) VALUES (?, ?, ?)",
+                           arguments: [episodeID, model, blob])
+        }
+    }
+
+    /// All vectors for a model, newer than `afterID`. Used to keep the in-memory index current.
+    public func embeddings(model: String, afterID: Int64 = 0) throws -> [(Int64, [Float])] {
+        try db.read { db in
+            try Row.fetchAll(db, sql: "SELECT episodeID, vector FROM embeddings WHERE model = ? AND episodeID > ? ORDER BY episodeID",
+                             arguments: [model, afterID]).map { row in
+                let data: Data = row["vector"]
+                let vector = data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+                return (row["episodeID"], vector)
+            }
+        }
+    }
+
+    public func episodes(ids: [Int64]) throws -> [Episode] {
+        guard !ids.isEmpty else { return [] }
+        let found = try db.read { db in try Episode.fetchAll(db, keys: ids) }
+        let byID = Dictionary(uniqueKeysWithValues: found.compactMap { e in e.id.map { ($0, e) } })
+        return ids.compactMap { byID[$0] }
     }
 
     public func episodeCount() throws -> Int {

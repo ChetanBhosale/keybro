@@ -6,6 +6,7 @@ struct MenuContent: View {
     var state: AppState
     @Bindable var memory: MemorySettings
     var memoryAvailable: Bool
+    var services: MemoryServices?
     var openSetup: () -> Void
     var openMemory: () -> Void
     var openSettings: () -> Void
@@ -59,6 +60,16 @@ struct MenuContent: View {
                     }
                     Button("Open Memory…", action: openMemory)
                         .disabled(!memoryAvailable)
+                }
+                if let services {
+                    let open = (try? services.store.openLoops().count) ?? 0
+                    if open > 0 {
+                        Text("\(open) open promise\(open == 1 ? "" : "s")").font(.caption)
+                    }
+                    Button(services.running ? "Updating memory…" : "Update memory now") {
+                        Task { await services.runNow() }
+                    }
+                    .disabled(services.running)
                 }
                 Text("Stays on this Mac. Password fields, password managers and terminals are never read.")
                     .font(.caption)

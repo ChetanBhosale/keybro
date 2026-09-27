@@ -10,6 +10,7 @@ struct KeybroApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContent(state: delegate.state, memory: delegate.memorySettings, memoryAvailable: delegate.memoryStore != nil,
+                        services: delegate.memoryServices,
                         openSetup: delegate.showSetup, openMemory: delegate.showMemory, openSettings: delegate.showSettings)
         } label: {
             Image(systemName: "keyboard")
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let memorySettings = MemorySettings()
     /// nil if the database couldn't open; keybro still works, it just doesn't remember.
     let memoryStore = try? MemoryStore(url: MemoryStore.defaultURL)
+    private(set) var memoryServices: MemoryServices?
     private var recorder: MemoryRecorder?
     private var typingWatcher: TypingWatcher?
     private var setupWindow: NSWindow?
@@ -37,7 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let state = state
         let settings = memorySettings
-        let recorder = memoryStore.map { MemoryRecorder(store: $0) }
+        if let memoryStore {
+            let services = MemoryServices(store: memoryStore, claudePath: { state.claudePath })
+            services.start()
+            memoryServices = services
+        }
+        let search = memoryServices?.search
+        let recorder = memoryStore.map { MemoryRecorder(store: $0, search: search) }
         self.recorder = recorder
         if let recorder {
             // Clear anything stored before the current content rules.
@@ -115,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.title = "keybro Memory"
             window.isReleasedWhenClosed = false
-            window.contentViewController = NSHostingController(rootView: MemoryWindowView(model: MemoryViewModel(store: memoryStore)))
+            window.contentViewController = NSHostingController(rootView: MemoryWindowView(model: MemoryViewModel(store: memoryStore), services: memoryServices))
             window.center()
             memoryWindow = window
         }
@@ -134,7 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.title = "keybro Settings"
             window.isReleasedWhenClosed = false
             window.contentViewController = NSHostingController(
-                rootView: SettingsView(state: state, memory: memorySettings, store: memoryStore, openMemory: { [weak self] in self?.showMemory() })
+                rootView: SettingsView(state: state, memory: memorySettings, store: memoryStore, services: memoryServices,
+                                       openMemory: { [weak self] in self?.showMemory() })
             )
             window.center()
             settingsWindow = window

@@ -4,7 +4,46 @@ import KeybroKit
 // Usage:
 //   swift run keybro-smoke "prompt" [haiku|sonnet|opus]
 //   swift run keybro-smoke --generate chat.png "sorry to rahul, cant come"
+//   KEYBRO_MEMORY_DIR=/tmp/x swift run keybro-smoke --seed-and-consolidate   (uses local Ollama)
 let args = Array(CommandLine.arguments.dropFirst())
+
+if args.first == "--seed-and-consolidate" {
+    let store = try MemoryStore(url: MemoryStore.defaultURL)
+    let now = Date()
+    let priya = try store.resolvePerson(named: "Priya", surface: "whatsapp")
+    let rahul = try store.resolvePerson(named: "Rahul", surface: "whatsapp")
+    let seed: [(Int64?, String?, String, String, Double)] = [
+        (priya, "Priya", "whatsapp", "ill send you the pitch deck by friday, promise", -5 * 3600),
+        (rahul, "Rahul", "whatsapp", "congrats on the new job at Swiggy bro! how's bangalore treating you", -4 * 3600),
+        (rahul, "Rahul", "whatsapp", "cant make it tonight, stuck with work. sunday brunch instead?", -3 * 3600),
+        (nil, nil, "slack", "migration didn't run on staging, rerunning it now and adding a CI check before monday", -2 * 3600),
+        (priya, "Priya", "whatsapp", "here's the deck, let me know what you think", -1 * 3600),
+    ]
+    for (entity, contact, surface, text, offset) in seed {
+        try store.insert(Episode(kind: .sent, surface: surface, entityID: entity, contactRaw: contact, text: text, createdAt: now.addingTimeInterval(offset)))
+    }
+    if args.contains("--no-model") {
+        try store.addFact(subject: "Rahul", entityID: rahul, predicate: "works_at", object: "Swiggy", validFrom: now)
+        try store.addLoop(OpenLoop(id: nil, entityID: priya, person: "Priya", text: "Send pitch deck", dueAt: now.addingTimeInterval(4 * 86_400), status: .open, createdAt: now))
+        print("seeded \(MemoryStore.defaultURL.path)")
+        exit(0)
+    }
+    let model = OllamaTextModel()
+    guard await model.isAvailable() else { print("Ollama \(model.model) not available"); exit(1) }
+    let start = ContinuousClock.now
+    let report = await Consolidator(store: store, model: model).run(now: now)
+    print("took \(ContinuousClock.now - start)")
+    print(report)
+    for p in try store.people() {
+        print("\n== \(p.name)")
+        if let profile = try store.profile(entityID: p.id) { print("profile:", profile.summary, "| patterns:", profile.patterns) }
+        for f in try store.factHistory(entityID: p.id) { print("fact:", f.predicate, "=", f.object, f.isCurrent ? "" : "(replaced)") }
+    }
+    for f in try store.facts(entityID: nil, subject: "me") { print("me:", f.predicate, "=", f.object) }
+    for l in try store.loops(entityID: priya!) + (try store.openLoops()) { print("loop:", l.status, l.text, l.person ?? "", l.dueAt.map { "\($0)" } ?? "") }
+    print("digest:", try store.digest(day: Consolidator.dayKey(now, calendar: .current)) ?? "-")
+    exit(0)
+}
 
 guard let path = ClaudeLocator.live.locate() else {
     FileHandle.standardError.write(Data("claude not found\n".utf8))

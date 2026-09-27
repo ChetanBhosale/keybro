@@ -10,8 +10,11 @@ public enum KeybroPaths {
         appSupport.appending(path: "claude-cwd", directoryHint: .isDirectory)
     }
 
-    /// User-visible memory folder (plan section 4).
+    /// User-visible memory folder. `KEYBRO_MEMORY_DIR` points it elsewhere (tests, dev tools).
     public static var memory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appending(path: "keybro-memory", directoryHint: .isDirectory)
+        if let dir = ProcessInfo.processInfo.environment["KEYBRO_MEMORY_DIR"], !dir.isEmpty {
+            return URL(fileURLWithPath: dir, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appending(path: "keybro-memory", directoryHint: .isDirectory)
     }
 }

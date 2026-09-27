@@ -10,6 +10,12 @@ final class MemoryViewModel {
     var people: [PersonSummary] = []
     var graph = MemoryGraph(people: [], edges: [])
     var personEpisodes: [Episode] = []
+    var personProfile: PersonProfile?
+    var personFacts: [Fact] = []
+    var personLoops: [OpenLoop] = []
+    var asOf: Date?
+    var loops: [OpenLoop] = []
+    var digests: [(day: String, text: String)] = []
     var query = ""
     var error: String?
 
@@ -21,6 +27,8 @@ final class MemoryViewModel {
             episodes = q.isEmpty ? try store.recentEpisodes(limit: 300) : try store.search(q, limit: 100)
             people = try store.people()
             graph = try store.graph()
+            loops = try store.allLoops()
+            digests = try store.digests()
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -28,7 +36,17 @@ final class MemoryViewModel {
     }
 
     func loadPerson(_ id: Int64?) {
-        personEpisodes = (id.flatMap { try? store.episodes(forPerson: $0, limit: 200) }) ?? []
+        guard let id else { personEpisodes = []; personProfile = nil; personFacts = []; personLoops = []; return }
+        personEpisodes = ((try? store.episodes(forPerson: id, limit: 200)) ?? []).filter { e in asOf.map { e.createdAt <= $0 } ?? true }
+        personProfile = asOf == nil ? try? store.profile(entityID: id) : nil
+        // Now: every fact with replaced ones struck through. As of a date: only what was true then.
+        personFacts = (asOf.map { try? store.facts(entityID: id, asOf: $0) } ?? (try? store.factHistory(entityID: id))) ?? []
+        personLoops = (try? store.loops(entityID: id)) ?? []
+    }
+
+    func setLoop(_ loop: OpenLoop, _ status: OpenLoop.Status) {
+        try? store.setLoop(loop.id!, status: status)
+        reload()
     }
 
     func delete(_ episode: Episode) {
@@ -40,18 +58,21 @@ final class MemoryViewModel {
 
 struct MemoryWindowView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case timeline = "Timeline", people = "People", graph = "Graph"
+        case timeline = "Timeline", people = "People", promises = "Promises", digests = "Digests", graph = "Graph"
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .timeline: "clock"
             case .people: "person.2"
+            case .promises: "checklist"
+            case .digests: "newspaper"
             case .graph: "point.3.connected.trianglepath.dotted"
             }
         }
     }
 
     @Bindable var model: MemoryViewModel
+    var services: MemoryServices?
     @State private var section: Section = .timeline
     @State private var selectedPerson: Int64?
 
@@ -66,6 +87,8 @@ struct MemoryWindowView: View {
                 switch section {
                 case .timeline: timeline
                 case .people: people
+                case .promises: promises
+                case .digests: digests
                 case .graph: GraphView(graph: model.graph) { id in
                     selectedPerson = id
                     section = .people
@@ -128,13 +151,101 @@ struct MemoryWindowView: View {
                 if selectedPerson == nil {
                     ContentUnavailableView("Pick someone", systemImage: "person.crop.circle")
                 } else {
-                    List(model.personEpisodes, id: \.id) { EpisodeRow(episode: $0) }
+                    personDetail
                 }
             }
             .frame(minWidth: 360)
         }
         .onChange(of: selectedPerson) { _, id in model.loadPerson(id) }
         .onAppear { model.loadPerson(selectedPerson) }
+    }
+
+    private var personDetail: some View {
+        List {
+            SwiftUI.Section {
+                HStack {
+                    Toggle("Look back to", isOn: Binding(
+                        get: { model.asOf != nil },
+                        set: { model.asOf = $0 ? Date().addingTimeInterval(-30 * 86_400) : nil; model.loadPerson(selectedPerson) }))
+                    if let asOf = model.asOf {
+                        DatePicker("", selection: Binding(get: { asOf }, set: { model.asOf = $0; model.loadPerson(selectedPerson) }),
+                                   in: ...Date(), displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                }
+                if let profile = model.personProfile {
+                    Text(profile.summary)
+                    if !profile.patterns.isEmpty {
+                        Text(profile.patterns.split(separator: "\n").map { "• \($0)" }.joined(separator: "\n"))
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if !model.personFacts.isEmpty {
+                SwiftUI.Section(model.asOf == nil ? "Facts" : "True back then") {
+                    ForEach(model.personFacts, id: \.id) { fact in
+                        HStack {
+                            Text("\(fact.predicate.replacingOccurrences(of: "_", with: " ")): \(fact.object)")
+                                .strikethrough(model.asOf == nil && !fact.isCurrent)
+                                .foregroundStyle(model.asOf == nil && !fact.isCurrent ? .secondary : .primary)
+                            Spacer()
+                            Text(fact.validTo.map { "until \($0.formatted(date: .abbreviated, time: .omitted))" }
+                                 ?? "since \(fact.validFrom.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            if !model.personLoops.isEmpty {
+                SwiftUI.Section("Promises") {
+                    ForEach(model.personLoops) { LoopRow(loop: $0) { l, s in model.setLoop(l, s); model.loadPerson(selectedPerson) } }
+                }
+            }
+            SwiftUI.Section("Messages") {
+                ForEach(model.personEpisodes, id: \.id) { EpisodeRow(episode: $0) }
+            }
+        }
+    }
+
+    private var promises: some View {
+        Group {
+            if model.loops.isEmpty {
+                ContentUnavailableView("No promises yet", systemImage: "checklist",
+                                       description: Text("When you write things like \"I'll send it Friday\", the nightly update adds them here."))
+            } else {
+                List {
+                    SwiftUI.Section("Open") {
+                        ForEach(model.loops.filter { $0.status == .open }) { LoopRow(loop: $0) { l, s in model.setLoop(l, s) } }
+                    }
+                    SwiftUI.Section("Done") {
+                        ForEach(model.loops.filter { $0.status != .open }) { LoopRow(loop: $0) { l, s in model.setLoop(l, s) } }
+                    }
+                }
+            }
+        }
+        .toolbar {
+            if let services {
+                Button(services.running ? "Updating…" : "Update now") { Task { await services.runNow(); model.reload() } }
+                    .disabled(services.running)
+            }
+        }
+    }
+
+    private var digests: some View {
+        Group {
+            if model.digests.isEmpty {
+                ContentUnavailableView("No digests yet", systemImage: "newspaper",
+                                       description: Text("A short summary of your day appears here after 9 PM."))
+            } else {
+                List(model.digests, id: \.day) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.day).font(.headline)
+                        Text(item.text).textSelection(.enabled)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
     }
 
     private func groupedByDay(_ episodes: [Episode]) -> [(String, [Episode])] {
@@ -182,6 +293,7 @@ struct EpisodeRow: View {
         case .draft: "Draft"
         case .fix: "Fixed"
         case .generate: "Generated"
+        case .note: "Note"
         }
     }
 
@@ -191,8 +303,36 @@ struct EpisodeRow: View {
         case .draft: .secondary
         case .fix: .blue
         case .generate: .orange
+        case .note: .purple
         }
     }
+}
+
+struct LoopRow: View {
+    var loop: OpenLoop
+    var set: (OpenLoop, OpenLoop.Status) -> Void
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Image(systemName: loop.status == .open ? "circle" : loop.status == .done ? "checkmark.circle.fill" : "xmark.circle")
+                .foregroundStyle(loop.status == .done ? .green : overdue ? .orange : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(loop.text).strikethrough(loop.status != .open)
+                Text([loop.person.map { "to \($0)" }, loop.dueAt.map { (overdue ? "was due " : "due ") + $0.formatted(date: .abbreviated, time: .omitted) }]
+                        .compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(overdue ? .orange : .secondary)
+            }
+            Spacer()
+            if loop.status == .open {
+                Button("Done") { set(loop, .done) }
+                Button("Drop") { set(loop, .dropped) }
+            } else {
+                Button("Reopen") { set(loop, .open) }
+            }
+        }
+    }
+
+    private var overdue: Bool { loop.status == .open && (loop.dueAt ?? .distantFuture) < Date() }
 }
 
 /// You in the middle, people around you. Bigger dot, more messages. Lines: they mention each other.

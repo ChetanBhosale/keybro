@@ -4,7 +4,9 @@ BUNDLE_ID := dev.chetan.keybro
 # so permissions survive rebuilds. Otherwise ad-hoc.
 SIGN := $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q "keybro Dev" && echo 'CODE_SIGN_IDENTITY=keybro Dev' || echo 'CODE_SIGN_IDENTITY=-')
 
-.PHONY: gen build run test smoke reset-perms clean dev-cert
+MCP_DIR := $(HOME)/Library/Application Support/keybro/bin
+
+.PHONY: gen build run test smoke reset-perms clean dev-cert mcp
 
 dev-cert:
 	./scripts/make-dev-cert.sh
@@ -15,7 +17,14 @@ gen:
 build: gen
 	xcodebuild -project keybro.xcodeproj -scheme keybro -configuration Debug -derivedDataPath build -quiet "$(SIGN)" build
 
-run: build
+# MCP server for Claude Code, installed at a fixed path: claude mcp add keybro -- "$(MCP_DIR)/keybro-mcp"
+mcp:
+	cd KeybroKit && swift build -c release --product keybro-mcp
+	mkdir -p "$(MCP_DIR)"
+	cp "$$(cd KeybroKit && swift build -c release --show-bin-path)/keybro-mcp" "$(MCP_DIR)/keybro-mcp"
+	@echo "Installed. Connect with: claude mcp add keybro -- \"$(MCP_DIR)/keybro-mcp\""
+
+run: build mcp
 	-pkill -x keybro
 	open $(APP)
 
