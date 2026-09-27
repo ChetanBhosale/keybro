@@ -17,6 +17,9 @@ public struct TextTarget: @unchecked Sendable {
 
     public var pid: pid_t
     public var appName: String?
+    public var bundleID: String?
+    /// Title of the app's focused window; carries the conversation name in some apps.
+    public var windowTitle: String?
     public var text: String
     public var source: Source
     /// UTF-16 range of `text` inside `fullValue` (Accessibility sources only).
@@ -27,9 +30,11 @@ public struct TextTarget: @unchecked Sendable {
     public var anchor: CGRect?
     public var element: AXUIElement?
 
-    public init(pid: pid_t, appName: String? = nil, text: String, source: Source, range: NSRange? = nil, fullValue: String? = nil, anchor: CGRect? = nil, element: AXUIElement? = nil) {
+    public init(pid: pid_t, appName: String? = nil, bundleID: String? = nil, windowTitle: String? = nil, text: String, source: Source, range: NSRange? = nil, fullValue: String? = nil, anchor: CGRect? = nil, element: AXUIElement? = nil) {
         self.pid = pid
         self.appName = appName
+        self.bundleID = bundleID
+        self.windowTitle = windowTitle
         self.text = text
         self.source = source
         self.range = range

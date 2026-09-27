@@ -24,17 +24,27 @@ public final class GenerateController {
 
     public typealias Screenshotter = @Sendable (pid_t) async -> ClaudeImage?
     public typealias Generator = @Sendable (GenerateInput) -> AsyncThrowingStream<GenerateDraft, Error>
+    /// Memory for this instruction and field, if any.
+    public typealias MemoryLookup = @Sendable (String, TextTarget) async -> String?
+    /// Called after a draft is inserted: (text, where, contact Claude saw).
+    public typealias InsertedHandler = @Sendable (String, TextTarget, String?) async -> Void
 
     private let driver: TextFieldDriver
     private let screenshotter: Screenshotter
     private let generator: Generator
+    private let memory: MemoryLookup?
+    private let onInserted: InsertedHandler?
     private var screenshotTask: Task<ClaudeImage?, Never>?
     private var generateTask: Task<Void, Never>?
+    private var memoryText: String??
 
-    public init(driver: TextFieldDriver, screenshotter: @escaping Screenshotter, generator: @escaping Generator) {
+    public init(driver: TextFieldDriver, screenshotter: @escaping Screenshotter, generator: @escaping Generator,
+                memory: MemoryLookup? = nil, onInserted: InsertedHandler? = nil) {
         self.driver = driver
         self.screenshotter = screenshotter
         self.generator = generator
+        self.memory = memory
+        self.onInserted = onInserted
     }
 
     public var isOpen: Bool { phase != .idle && phase != .inserting }
@@ -116,6 +126,10 @@ public final class GenerateController {
         generateTask = Task {
             var input = baseInput
             input.screenshot = await screenshotTask?.value
+            if memoryText == nil, let memory, let target {
+                memoryText = .some(await memory(baseInput.instruction, target))
+            }
+            input.memory = memoryText ?? nil
             hasScreenshot = input.screenshot != nil
             do {
                 for try await update in generator(input) {
@@ -162,7 +176,9 @@ public final class GenerateController {
             driver.copyToClipboard(text)
             return fail("Couldn't type into \(target.appName ?? "this app"). The message is on your clipboard.", keepOpen: false)
         }
+        let contact = draft.contact
         reset()
+        await onInserted?(text, destination, contact)
     }
 
     private func fail(_ message: String, keepOpen: Bool = true) {
@@ -177,5 +193,6 @@ public final class GenerateController {
         selected = .casual
         hasScreenshot = false
         instruction = ""
+        memoryText = nil
     }
 }

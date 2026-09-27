@@ -125,13 +125,13 @@ extension ClaudeRunnerTests {
         sleep 1.5
         echo '{"type":"result","subtype":"success","is_error":false,"result":"early","session_id":"s"}'
         """#)
-        let start = ContinuousClock.now
-        var firstDelta: Duration?
+        // Process start time varies under parallel tests, so compare against the end instead.
+        var firstDelta: ContinuousClock.Instant?
         for try await event in runner.run(ClaudeRequest(prompt: "x")) {
-            if case .textDelta = event, firstDelta == nil { firstDelta = ContinuousClock.now - start }
+            if case .textDelta = event, firstDelta == nil { firstDelta = .now }
         }
-        let first = try #require(firstDelta)
-        #expect(first < .milliseconds(1200), "first delta took \(first)")
+        let gap = ContinuousClock.now - (try #require(firstDelta))
+        #expect(gap > .milliseconds(1000), "delta arrived only \(gap) before the end")
     }
 
     @Test func stderrIsStillCollectedForErrors() async throws {

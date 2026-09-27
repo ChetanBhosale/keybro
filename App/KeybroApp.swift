@@ -9,7 +9,8 @@ struct KeybroApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(state: delegate.state, openSetup: delegate.showSetup)
+            MenuContent(state: delegate.state, memory: delegate.memorySettings, memoryAvailable: delegate.memoryStore != nil,
+                        openSetup: delegate.showSetup, openMemory: delegate.showMemory)
         } label: {
             Image(systemName: "keyboard")
         }
@@ -20,7 +21,13 @@ struct KeybroApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let state = AppState()
+    let memorySettings = MemorySettings()
+    /// nil if the database couldn't open; keybro still works, it just doesn't remember.
+    let memoryStore = try? MemoryStore(url: MemoryStore.defaultURL)
+    private var recorder: MemoryRecorder?
+    private var typingWatcher: TypingWatcher?
     private var setupWindow: NSWindow?
+    private var memoryWindow: NSWindow?
     private var fixController: FixController?
     private var fixPill: FixPillPanel?
     private var generateController: GenerateController?
@@ -28,10 +35,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let state = state
-        let controller = FixController(driver: AXTextFieldDriver()) { text in
-            guard let path = await state.claudePath else { throw ClaudeError.notFound }
-            return try await ClaudeFixer(runner: ClaudeRunner(executablePath: path)).fix(text)
+        let settings = memorySettings
+        let recorder = memoryStore.map { MemoryRecorder(store: $0) }
+        self.recorder = recorder
+        if let recorder {
+            let watcher = TypingWatcher(recorder: recorder,
+                                        isEnabled: { settings.isCapturing },
+                                        isBlocked: { settings.isBlocked($0) })
+            watcher.start()
+            typingWatcher = watcher
         }
+
+        let controller = FixController(
+            driver: AXTextFieldDriver(),
+            fixer: { text in
+                guard let path = await state.claudePath else { throw ClaudeError.notFound }
+                return try await ClaudeFixer(runner: ClaudeRunner(executablePath: path)).fix(text)
+            },
+            onFixed: { fixed, target in
+                guard await settings.isCapturing, await !settings.isBlocked(target.bundleID) else { return }
+                await recorder?.recordFix(fixed: fixed, target: target)
+            }
+        )
         fixController = controller
         fixPill = FixPillPanel(controller: controller)
         KeyboardShortcuts.onKeyDown(for: .fix) { controller.trigger() }
@@ -58,6 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                     continuation.onTermination = { _ in task.cancel() }
                 }
+            },
+            memory: { instruction, target in
+                await recorder?.context(instruction: instruction, target: target)
+            },
+            onInserted: { text, target, contact in
+                guard await settings.isCapturing, await !settings.isBlocked(target.bundleID) else { return }
+                await recorder?.recordGenerate(inserted: text, target: target, contact: contact)
             }
         )
         generateController = generate
@@ -67,6 +99,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "didFinishSetup") || !state.accessibility {
             showSetup()
         }
+    }
+
+    func showMemory() {
+        guard let memoryStore else { return }
+        if memoryWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 960, height: 620),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "keybro Memory"
+            window.isReleasedWhenClosed = false
+            window.contentViewController = NSHostingController(rootView: MemoryWindowView(model: MemoryViewModel(store: memoryStore)))
+            window.center()
+            memoryWindow = window
+        }
+        NSApp.activate()
+        memoryWindow?.makeKeyAndOrderFront(nil)
     }
 
     func showSetup() {

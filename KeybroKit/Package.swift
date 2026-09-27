@@ -8,8 +8,11 @@ let package = Package(
         .library(name: "KeybroKit", targets: ["KeybroKit"]),
         .executable(name: "keybro-smoke", targets: ["keybro-smoke"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.0"),
+    ],
     targets: [
-        .target(name: "KeybroKit"),
+        .target(name: "KeybroKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
         // Dev tool: runs one prompt through ClaudeRunner from the terminal.
         .executableTarget(name: "keybro-smoke", dependencies: ["KeybroKit"]),
         // Dev tool: Fix end to end in a scratch TextEdit document (needs Accessibility).

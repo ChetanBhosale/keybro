@@ -4,7 +4,10 @@ import SwiftUI
 
 struct MenuContent: View {
     var state: AppState
+    @Bindable var memory: MemorySettings
+    var memoryAvailable: Bool
     var openSetup: () -> Void
+    var openMemory: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -38,6 +41,31 @@ struct MenuContent: View {
             }
 
             Divider()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Memory").font(.headline)
+                    Spacer()
+                    Text(memoryStatus).font(.caption).foregroundStyle(memory.isCapturing && memoryAvailable ? .green : .secondary)
+                }
+                Toggle("Remember what I type", isOn: $memory.rememberTyping)
+                    .disabled(!memoryAvailable)
+                HStack {
+                    if memory.isPaused {
+                        Button("Resume") { memory.resume() }
+                    } else {
+                        Button("Pause 1 hour") { memory.pause(for: 3600) }
+                            .disabled(!memory.rememberTyping)
+                    }
+                    Button("Open Memory…", action: openMemory)
+                        .disabled(!memoryAvailable)
+                }
+                Text("Stays on this Mac. Password fields, password managers and terminals are never read.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
             Button("Setup…", action: openSetup)
             Button("Quit keybro") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
@@ -45,6 +73,17 @@ struct MenuContent: View {
         .padding(14)
         .frame(width: 300)
         .onAppear { state.refreshPermissions() }
+    }
+}
+
+extension MenuContent {
+    var memoryStatus: String {
+        if !memoryAvailable { return "Unavailable" }
+        if !memory.rememberTyping { return "Off" }
+        if let until = memory.pausedUntil, memory.isPaused {
+            return "Paused until \(until.formatted(date: .omitted, time: .shortened))"
+        }
+        return "On"
     }
 }
 

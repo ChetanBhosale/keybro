@@ -16,6 +16,24 @@ public final class AXTextFieldDriver: TextFieldDriver {
     public init() {}
 
     public func capture() async -> CaptureResult {
+        stamp(await captureFix())
+    }
+
+    public func captureForInsert() async -> CaptureResult {
+        stamp(await captureInsert())
+    }
+
+    /// Adds bundle id and window title so memory knows where the text lives.
+    private func stamp(_ result: CaptureResult) -> CaptureResult {
+        guard case .target(var t) = result else { return result }
+        let app = NSRunningApplication(processIdentifier: t.pid)
+        t.bundleID = app?.bundleIdentifier
+        t.appName = t.appName ?? app?.localizedName
+        t.windowTitle = AX.focusedWindowTitle(in: t.pid)
+        return .target(t)
+    }
+
+    private func captureFix() async -> CaptureResult {
         guard AXIsProcessTrusted() else { return .noAccess }
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else {
             return .nothingToFix(anchor: nil)
@@ -60,7 +78,7 @@ public final class AXTextFieldDriver: TextFieldDriver {
         return .target(TextTarget(pid: pid, appName: app.localizedName, text: text, source: source, anchor: anchor, element: element))
     }
 
-    public func captureForInsert() async -> CaptureResult {
+    private func captureInsert() async -> CaptureResult {
         guard AXIsProcessTrusted() else { return .noAccess }
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else {
             return .nothingToFix(anchor: nil)

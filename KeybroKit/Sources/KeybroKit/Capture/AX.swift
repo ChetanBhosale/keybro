@@ -22,6 +22,13 @@ enum AX {
         return element
     }
 
+    static func focusedWindowTitle(in pid: pid_t) -> String? {
+        guard let window = attribute(application(pid), "AXFocusedWindow"),
+              CFGetTypeID(window) == AXUIElementGetTypeID()
+        else { return nil }
+        return string(window as! AXUIElement, "AXTitle")
+    }
+
     /// Electron apps (Slack, Discord, VS Code) only build their tree when asked.
     static func enableManualAccessibility(_ pid: pid_t) {
         AXUIElementSetAttributeValue(application(pid), "AXManualAccessibility" as CFString, kCFBooleanTrue)

@@ -18,8 +18,11 @@ make reset-perms  # clear Accessibility / Screen Recording grants
 
 ## Layout
 - `App/`: SwiftUI app target (menu bar, setup window)
-- `KeybroKit/`: all logic as a Swift package (`Engine/`, `Capture/`, `Insert/`, `Fix/`, `Generate/`, `Text/`, `System/`), tested with `swift test`
+- `KeybroKit/`: all logic as a Swift package (`Engine/`, `Capture/`, `Insert/`, `Fix/`, `Generate/`, `Memory/`, `Text/`, `System/`), tested with `swift test`
 - `project.yml`: XcodeGen spec. `keybro.xcodeproj` is generated, not committed
 
 ## Dev note: permissions
 Builds are ad-hoc signed until there's a Developer ID. macOS ties Accessibility grants to the signature, so after a rebuild the toggle can look on but not work. Run `make reset-perms` and grant again.
+
+## Memory
+Stored in `~/keybro-memory/memory.db` (SQLite, only readable by you). Typing capture is on by default: toggle or pause it from the menu bar. Password fields, password managers and terminals are skipped, and API keys, tokens, card numbers and OTPs are redacted before anything is saved.

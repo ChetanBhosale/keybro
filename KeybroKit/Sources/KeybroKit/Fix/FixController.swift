@@ -22,18 +22,21 @@ public final class FixController {
     public private(set) var state: FixState = .idle
 
     public typealias Fixer = @Sendable (String) async throws -> String
+    public typealias FixedHandler = @Sendable (String, TextTarget) async -> Void
 
     private let driver: TextFieldDriver
     private let fixer: Fixer
     private let hideAfter: Duration
+    private let onFixed: FixedHandler?
     private var runTask: Task<Void, Never>?
     private var hideTask: Task<Void, Never>?
     private var last: (target: TextTarget, outcome: ReplaceOutcome, original: String, fixed: String)?
 
-    public init(driver: TextFieldDriver, fixer: @escaping Fixer, hideAfter: Duration = .seconds(5)) {
+    public init(driver: TextFieldDriver, fixer: @escaping Fixer, hideAfter: Duration = .seconds(5), onFixed: FixedHandler? = nil) {
         self.driver = driver
         self.fixer = fixer
         self.hideAfter = hideAfter
+        self.onFixed = onFixed
     }
 
     /// Hotkey entry point.
@@ -101,6 +104,7 @@ public final class FixController {
         }
         last = (target, outcome, target.text, fixed)
         finish(.done(anchor: target.anchor, changed: true))
+        await onFixed?(fixed, target)
     }
 
     public var canUndo: Bool { last != nil }
